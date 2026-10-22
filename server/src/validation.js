@@ -1,0 +1,77 @@
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const NAME_RE = /^[\p{L}][\p{L}\p{M} .'-]*$/u;
+const MEMBER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_\-/]*$/;
+
+const asString = (v) => (typeof v === 'string' ? v : '');
+
+export function normalizeEmail(value) {
+  return asString(value).trim().toLowerCase();
+}
+
+export function normalizeMemberId(value) {
+  return asString(value).trim().toUpperCase();
+}
+
+export function validateRegistration(body = {}) {
+  const fullName = asString(body.fullName).trim().replace(/\s+/g, ' ');
+  const email = normalizeEmail(body.email);
+  const memberId = normalizeMemberId(body.memberId);
+  const password = asString(body.password);
+  const confirmPassword = asString(body.confirmPassword);
+
+  const errors = {};
+
+  if (fullName.length < 2 || fullName.length > 100) {
+    errors.fullName = 'Enter your full name (2 to 100 characters).';
+  } else if (!NAME_RE.test(fullName)) {
+    errors.fullName = 'Full name can only contain letters, spaces, periods, apostrophes and hyphens.';
+  }
+
+  if (!email) {
+    errors.email = 'Enter your email address.';
+  } else if (email.length > 255 || !EMAIL_RE.test(email)) {
+    errors.email = 'Enter a valid email address.';
+  }
+
+  if (!memberId) {
+    errors.memberId = 'Enter your student or staff ID.';
+  } else if (memberId.length < 3 || memberId.length > 32 || !MEMBER_ID_RE.test(memberId)) {
+    errors.memberId = 'ID must be 3 to 32 characters using letters, numbers, hyphens, underscores or slashes.';
+  }
+
+  const passwordError = checkPassword(password);
+  if (passwordError) errors.password = passwordError;
+
+  if (!confirmPassword) {
+    errors.confirmPassword = 'Confirm your password.';
+  } else if (password !== confirmPassword) {
+    errors.confirmPassword = 'Passwords do not match.';
+  }
+
+  return { errors, values: { fullName, email, memberId, password } };
+}
+
+export function checkPassword(password) {
+  if (!password) return 'Enter a password.';
+  if (password.length < 8) return 'Password must be at least 8 characters.';
+  // bcrypt only uses the first 72 bytes, so reject anything longer instead of truncating silently.
+  if (Buffer.byteLength(password, 'utf8') > 72) return 'Password must be 72 bytes or fewer.';
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    return 'Use at least one uppercase letter, one lowercase letter and one number.';
+  }
+  return null;
+}
+
+export function validateLogin(body = {}) {
+  const identifier = asString(body.identifier).trim();
+  const password = asString(body.password);
+  const errors = {};
+
+  if (!identifier) errors.identifier = 'Enter your email or student/staff ID.';
+  else if (identifier.length > 255) errors.identifier = 'That value is too long.';
+
+  if (!password) errors.password = 'Enter your password.';
+  else if (password.length > 1024) errors.password = 'That value is too long.';
+
+  return { errors, values: { identifier, password } };
+}

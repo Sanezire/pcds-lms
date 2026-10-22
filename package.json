@@ -1,0 +1,13 @@
+{
+  "name": "pcds-lms",
+  "private": true,
+  "scripts": {
+    "setup": "npm install && npm install --prefix server && npm install --prefix client",
+    "db:init": "npm run db:init --prefix server",
+    "seed:admin": "npm run seed:admin --prefix server",
+    "dev": "concurrently -n api,web -c blue,cyan \"npm run dev --prefix server\" \"npm run dev --prefix client\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
