@@ -1,16 +1,14 @@
-import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 
 const ROLE_COPY = {
-  admin: 'You can manage accounts, assign roles and suspend access.',
-  librarian: 'You can view the list of registered accounts.',
+  admin: 'You have administrator access to the PCDS RFID Kiosk.',
+  librarian: 'You can run the PCDS RFID Kiosk.',
   student: 'Your account is active. Kiosk features will appear here.',
 };
 
 export default function Dashboard() {
   const { user } = useAuth();
   const firstName = user.fullName.split(' ')[0];
-  const canManage = user.role === 'admin' || user.role === 'librarian';
 
   return (
     <div className="dashboard">
@@ -40,17 +38,6 @@ export default function Dashboard() {
           </div>
         </dl>
       </section>
-
-      {canManage && (
-        <nav className="tiles" aria-label="Quick actions">
-          <Link to="/members" className="tile">
-            <span className="tile-title">Accounts</span>
-            <span className="tile-text">
-              {user.role === 'admin' ? 'Manage roles and access' : 'View registered accounts'}
-            </span>
-          </Link>
-        </nav>
-      )}
     </div>
   );
 }

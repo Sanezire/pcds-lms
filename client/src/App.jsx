@@ -4,7 +4,6 @@ import AppShell from './components/AppShell.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
-import Members from './pages/Members.jsx';
 import Kiosk from './pages/Kiosk.jsx';
 
 export default function App() {
@@ -25,9 +24,6 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route element={<ProtectedRoute roles={['admin', 'librarian']} />}>
-            <Route path="/members" element={<Members />} />
-          </Route>
         </Route>
       </Route>
 
