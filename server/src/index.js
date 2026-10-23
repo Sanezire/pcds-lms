@@ -8,7 +8,6 @@ import { purgeExpiredSessions } from './sessions.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { requireCustomHeader } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
-import userRoutes from './routes/users.js';
 import attendanceRoutes from './routes/attendance.js';
 
 const app = express();
@@ -32,7 +31,6 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use('/api', apiLimiter, requireCustomHeader);
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
 app.use('/api', (req, res) => {
