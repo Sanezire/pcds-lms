@@ -10,6 +10,16 @@ export function BrandMark({ size = 36 }) {
   );
 }
 
+/* The RFID gif is a 640px canvas with the artwork centred in the middle 224px.
+   Crop to that artwork so it renders at the same visual size as the school logo. */
+export function RfidMark({ size = 84 }) {
+  return (
+    <span className="rfid-mark" style={{ width: size, height: size }}>
+      <img src="/images/rfid_icon.gif" alt="" />
+    </span>
+  );
+}
+
 /* Soft campus-and-card illustration for the lower left of the page. */
 function CampusScene() {
   return (
@@ -128,7 +138,7 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
       <main className="auth-main">
         <div className="auth-card">
           <div className="auth-card-logo">
-            <BrandMark size={84} />
+            <RfidMark size={84} />
           </div>
           <h1>{title}</h1>
           <p className="subtitle">{subtitle}</p>

@@ -176,6 +176,19 @@ a:hover {
   justify-content: center;
   margin-bottom: 14px;
 }
+.rfid-mark {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+.rfid-mark img {
+  position: absolute;
+  display: block;
+  width: 285.714%;
+  max-width: none;
+  left: -92.857%;
+  top: -92.857%;
+}
 .auth-card h1 {
   font-family: var(--font-display);
   text-align: center;
