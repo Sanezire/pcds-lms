@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
 import { Field } from '../components/Field.jsx';
@@ -49,12 +49,7 @@ export default function Login() {
   return (
     <AuthLayout
       title="Sign in"
-      subtitle="Use your email or student/staff ID."
-      footer={
-        <>
-          New to PCDS LMS? <Link to="/register">Create an account</Link>
-        </>
-      }
+      subtitle="Use your email or ID."
     >
       {notice && (
         <div className="alert alert-success" role="status">
@@ -69,7 +64,7 @@ export default function Login() {
 
       <form onSubmit={onSubmit} noValidate>
         <Field
-          label="Email or student/staff ID"
+          label="Email or ID"
           name="identifier"
           autoComplete="username"
           autoFocus

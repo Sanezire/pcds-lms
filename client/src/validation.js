@@ -16,7 +16,7 @@ export function validateRegister(v) {
   if (!email) e.email = 'Enter your email address.';
   else if (email.length > 255 || !EMAIL_RE.test(email)) e.email = 'Enter a valid email address.';
 
-  if (!memberId) e.memberId = 'Enter your student or staff ID.';
+  if (!memberId) e.memberId = 'Enter your admin ID.';
   else if (memberId.length < 3 || memberId.length > 32 || !MEMBER_ID_RE.test(memberId))
     e.memberId = 'ID must be 3 to 32 characters: letters, numbers, hyphens, underscores or slashes.';
 
@@ -30,12 +30,14 @@ export function validateRegister(v) {
   if (!v.confirmPassword) e.confirmPassword = 'Confirm your password.';
   else if (v.password !== v.confirmPassword) e.confirmPassword = 'Passwords do not match.';
 
+  if (!v.registrationKey.trim()) e.registrationKey = 'Enter the admin registration key.';
+
   return e;
 }
 
 export function validateLogin(v) {
   const e = {};
-  if (!v.identifier.trim()) e.identifier = 'Enter your email or student/staff ID.';
+  if (!v.identifier.trim()) e.identifier = 'Enter your email or ID.';
   if (!v.password) e.password = 'Enter your password.';
   return e;
 }

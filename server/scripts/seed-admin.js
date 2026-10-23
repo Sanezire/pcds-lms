@@ -10,6 +10,7 @@ const { errors, values } = validateRegistration({
   memberId: process.env.SEED_ADMIN_ID,
   password: process.env.SEED_ADMIN_PASSWORD,
   confirmPassword: process.env.SEED_ADMIN_PASSWORD,
+  registrationKey: 'seed', // not used; the seed script writes directly to the database
 });
 
 if (Object.keys(errors).length) {

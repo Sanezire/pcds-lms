@@ -5,7 +5,14 @@ import AuthLayout from '../components/AuthLayout.jsx';
 import { Field } from '../components/Field.jsx';
 import { validateRegister } from '../validation.js';
 
-const EMPTY = { fullName: '', email: '', memberId: '', password: '', confirmPassword: '' };
+const EMPTY = {
+  fullName: '',
+  email: '',
+  memberId: '',
+  password: '',
+  confirmPassword: '',
+  registrationKey: '',
+};
 
 export default function Register() {
   const { register } = useAuth();
@@ -44,7 +51,7 @@ export default function Register() {
       await register(values);
       navigate('/login', {
         replace: true,
-        state: { notice: 'Account created. Sign in to continue.' },
+        state: { notice: 'Administrator account created. Sign in to continue.' },
       });
     } catch (err) {
       setFormError(err.message);
@@ -55,8 +62,8 @@ export default function Register() {
 
   return (
     <AuthLayout
-      title="Create your account"
-      subtitle="Register with your school email and student or staff ID."
+      title="Register administrator"
+      subtitle="This page creates administrator accounts and needs the admin registration key."
       footer={
         <>
           Already registered? <Link to="/login">Sign in</Link>
@@ -89,7 +96,7 @@ export default function Register() {
           error={errors.email}
         />
         <Field
-          label="Student or staff ID"
+          label="Admin ID"
           name="memberId"
           autoComplete="off"
           value={values.memberId}
@@ -116,8 +123,17 @@ export default function Register() {
           onBlur={checkConfirm}
           error={errors.confirmPassword}
         />
+        <Field
+          label="Admin registration key"
+          name="registrationKey"
+          type="password"
+          autoComplete="off"
+          value={values.registrationKey}
+          onChange={set('registrationKey')}
+          error={errors.registrationKey}
+        />
         <button className="btn btn-primary btn-block" type="submit" disabled={submitting}>
-          {submitting ? 'Creating account…' : 'Create account'}
+          {submitting ? 'Creating account…' : 'Create administrator'}
         </button>
       </form>
     </AuthLayout>

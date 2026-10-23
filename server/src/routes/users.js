@@ -8,7 +8,7 @@ const router = Router();
 
 router.use(requireAuth);
 
-// Admins and librarians can see the member list.
+// Admins and librarians can see the account list.
 router.get('/users', requireRole(ROLES.ADMIN, ROLES.LIBRARIAN), async (req, res, next) => {
   try {
     const rows = await query(
@@ -24,7 +24,7 @@ router.get('/users', requireRole(ROLES.ADMIN, ROLES.LIBRARIAN), async (req, res,
 });
 
 // Only admins can change roles or account status. This is the only way to
-// create librarians and admins; public registration always creates students.
+// create librarians and admins; registration at /register always creates administrators.
 router.patch('/users/:id', requireRole(ROLES.ADMIN), async (req, res, next) => {
   try {
     const id = Number(req.params.id);

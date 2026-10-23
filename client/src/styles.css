@@ -343,10 +343,82 @@ a:hover {
   border: 1px solid var(--blue-200);
 }
 
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 .page {
-  max-width: 980px;
+  flex: 1;
+  width: 100%;
+  max-width: 1040px;
   margin: 0 auto;
   padding: 40px 24px 64px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dashboard: centred in the viewport, large touch-friendly content */
+.dashboard {
+  width: 100%;
+  max-width: 880px;
+  margin: auto;
+  padding: 8px 0 24px;
+  display: grid;
+  gap: 28px;
+}
+.dashboard-head {
+  text-align: center;
+}
+.dashboard-head h1 {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+}
+.dashboard-head .lead {
+  margin: 10px auto 0;
+  font-size: 1.125rem;
+}
+.dashboard .panel {
+  padding: 32px;
+}
+.dashboard .panel h2 {
+  font-size: 1.25rem;
+}
+.dashboard .details dd {
+  font-size: 1.125rem;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 96px;
+  justify-content: center;
+  padding: 20px 24px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--blue-500);
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.tile:hover {
+  background: var(--blue-100);
+  border-color: var(--blue-300);
+  border-left-color: var(--blue-600);
+  color: var(--ink);
+}
+.tile-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.tile-text {
+  color: var(--muted);
+  font-weight: 400;
 }
 .lead {
   color: var(--muted);
@@ -483,6 +555,9 @@ select:disabled {
   }
   .page {
     padding: 28px 16px 48px;
+  }
+  .dashboard .panel {
+    padding: 22px 18px;
   }
 }
 

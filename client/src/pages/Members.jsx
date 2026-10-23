@@ -42,7 +42,7 @@ export default function Members() {
       <p className="lead">
         {isAdmin
           ? 'Assign roles and suspend or reactivate accounts.'
-          : 'Everyone registered with PCDS LMS.'}
+          : 'Everyone registered with PCDS RFID Kiosk.'}
       </p>
 
       {error && (

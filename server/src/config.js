@@ -24,6 +24,9 @@ export const config = {
     ttlHours: num(process.env.SESSION_TTL_HOURS, 8),
   },
   bcryptRounds: num(process.env.BCRYPT_ROUNDS, 12),
+  // Shared secret required to create an administrator account at /register.
+  // When empty, admin registration is switched off entirely.
+  adminRegistrationKey: (process.env.ADMIN_REGISTRATION_KEY || '').trim(),
 };
 
 export const ROLES = Object.freeze({

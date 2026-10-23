@@ -18,6 +18,7 @@ export function validateRegistration(body = {}) {
   const memberId = normalizeMemberId(body.memberId);
   const password = asString(body.password);
   const confirmPassword = asString(body.confirmPassword);
+  const registrationKey = asString(body.registrationKey).trim();
 
   const errors = {};
 
@@ -34,7 +35,7 @@ export function validateRegistration(body = {}) {
   }
 
   if (!memberId) {
-    errors.memberId = 'Enter your student or staff ID.';
+    errors.memberId = 'Enter your admin ID.';
   } else if (memberId.length < 3 || memberId.length > 32 || !MEMBER_ID_RE.test(memberId)) {
     errors.memberId = 'ID must be 3 to 32 characters using letters, numbers, hyphens, underscores or slashes.';
   }
@@ -48,7 +49,13 @@ export function validateRegistration(body = {}) {
     errors.confirmPassword = 'Passwords do not match.';
   }
 
-  return { errors, values: { fullName, email, memberId, password } };
+  if (!registrationKey) {
+    errors.registrationKey = 'Enter the admin registration key.';
+  } else if (registrationKey.length > 128) {
+    errors.registrationKey = 'That key is too long.';
+  }
+
+  return { errors, values: { fullName, email, memberId, password, registrationKey } };
 }
 
 export function checkPassword(password) {
@@ -67,7 +74,7 @@ export function validateLogin(body = {}) {
   const password = asString(body.password);
   const errors = {};
 
-  if (!identifier) errors.identifier = 'Enter your email or student/staff ID.';
+  if (!identifier) errors.identifier = 'Enter your email or ID.';
   else if (identifier.length > 255) errors.identifier = 'That value is too long.';
 
   if (!password) errors.password = 'Enter your password.';

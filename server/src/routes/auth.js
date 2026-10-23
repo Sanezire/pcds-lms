@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { query } from '../db.js';
@@ -24,6 +25,13 @@ import {
 
 const router = Router();
 
+// Compare hashes of both values so the check takes the same time whatever the input.
+function keyMatches(provided, expected) {
+  const a = crypto.createHash('sha256').update(provided).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 // A real bcrypt hash of a random string. Comparing against it when no user is
 // found keeps response time similar whether or not the account exists.
 const DUMMY_HASH = bcrypt.hashSync('pcds-lms-dummy-password', config.bcryptRounds);
@@ -33,6 +41,18 @@ router.post('/register', registerLimiter, async (req, res, next) => {
     const { errors, values } = validateRegistration(req.body);
     if (Object.keys(errors).length) {
       throw httpError(400, 'Check the highlighted fields and try again.', errors);
+    }
+
+    // Only people holding the server-side registration key can create accounts.
+    // This runs before any database lookup so it cannot be used to probe for
+    // existing emails or IDs.
+    if (!config.adminRegistrationKey) {
+      throw httpError(503, 'Admin registration is turned off. Set ADMIN_REGISTRATION_KEY on the server to enable it.');
+    }
+    if (!keyMatches(values.registrationKey, config.adminRegistrationKey)) {
+      throw httpError(403, 'The admin registration key is incorrect.', {
+        registrationKey: 'The admin registration key is incorrect.',
+      });
     }
 
     const existing = await query(
@@ -51,11 +71,12 @@ router.post('/register', registerLimiter, async (req, res, next) => {
     const passwordHash = await bcrypt.hash(values.password, config.bcryptRounds);
 
     try {
-      // Role and status are fixed server-side. Any role sent by the client is ignored.
+      // Every account created here is an administrator. Role and status are
+      // fixed server-side; anything sent by the client is ignored.
       await query(
         `INSERT INTO users (full_name, email, member_id, password_hash, role, status)
          VALUES (?, ?, ?, ?, ?, 'active')`,
-        [values.fullName, values.email, values.memberId, passwordHash, ROLES.STUDENT]
+        [values.fullName, values.email, values.memberId, passwordHash, ROLES.ADMIN]
       );
     } catch (err) {
       // Two simultaneous registrations can pass the check above; the unique keys still win.
@@ -68,7 +89,7 @@ router.post('/register', registerLimiter, async (req, res, next) => {
       throw err;
     }
 
-    res.status(201).json({ message: 'Account created. You can sign in now.' });
+    res.status(201).json({ message: 'Administrator account created. You can sign in now.' });
   } catch (err) {
     next(err);
   }

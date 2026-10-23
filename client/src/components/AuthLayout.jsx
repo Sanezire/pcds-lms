@@ -16,14 +16,14 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
       <aside className="auth-side">
         <div className="brand">
           <BrandMark />
-          <span>PCDS LMS</span>
+          <span>PCDS RFID Kiosk</span>
         </div>
         <div className="auth-side-body">
-          <h2>Library services for students and staff.</h2>
+          <h2>Kiosk administration for PCDS.</h2>
           <ul>
-            <li>Find and reserve books from any device</li>
-            <li>See what you have borrowed and when it is due</li>
-            <li>Librarians manage the catalogue and members in one place</li>
+            <li>Sign in with your email or admin ID</li>
+            <li>Manage accounts, roles and access</li>
+            <li>RFID borrowing and returns are added next</li>
           </ul>
         </div>
       </aside>
@@ -32,12 +32,12 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
         <div className="auth-card">
           <div className="brand brand-mobile">
             <BrandMark size={30} />
-            <span>PCDS LMS</span>
+            <span>PCDS RFID Kiosk</span>
           </div>
           <h1>{title}</h1>
           <p className="subtitle">{subtitle}</p>
           {children}
-          <p className="auth-footer">{footer}</p>
+          {footer && <p className="auth-footer">{footer}</p>}
         </div>
       </main>
     </div>

@@ -39,5 +39,6 @@ export const registerLimiter = rateLimit({
   ...base,
   windowMs: 60 * 60 * 1000,
   limit: 10,
+  skipSuccessfulRequests: true,
   handler: tooMany('Too many registration attempts. Try again later.'),
 });
