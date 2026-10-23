@@ -3,14 +3,36 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
 import { Field } from '../components/Field.jsx';
+import { ArrowRightIcon, CheckIcon, LockIcon, MailIcon } from '../components/Icons.jsx';
 import { validateLogin } from '../validation.js';
+
+const REMEMBER_KEY = 'pcds_remembered_id';
+
+function readRemembered() {
+  try {
+    return localStorage.getItem(REMEMBER_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeRemembered(value) {
+  try {
+    if (value) localStorage.setItem(REMEMBER_KEY, value);
+    else localStorage.removeItem(REMEMBER_KEY);
+  } catch {
+    /* storage unavailable; skip */
+  }
+}
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [values, setValues] = useState({ identifier: '', password: '' });
+  const [remembered] = useState(readRemembered);
+  const [remember, setRemember] = useState(Boolean(remembered));
+  const [values, setValues] = useState({ identifier: remembered, password: '' });
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -37,6 +59,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(values.identifier.trim(), values.password);
+      writeRemembered(remember ? values.identifier.trim() : '');
       navigate(from && from !== '/login' ? from : '/dashboard', { replace: true });
     } catch (err) {
       setFormError(err.message);
@@ -48,8 +71,8 @@ export default function Login() {
 
   return (
     <AuthLayout
-      title="Sign in"
-      subtitle="Use your email or ID."
+      title="Welcome Back"
+      subtitle="Sign in to access the PCDS RFID Kiosk system."
     >
       {notice && (
         <div className="alert alert-success" role="status">
@@ -65,15 +88,17 @@ export default function Login() {
       <form onSubmit={onSubmit} noValidate>
         <Field
           label="Email or ID"
+          icon={MailIcon}
           name="identifier"
           autoComplete="username"
-          autoFocus
+          autoFocus={!remembered}
           value={values.identifier}
           onChange={set('identifier')}
           error={errors.identifier}
         />
         <Field
           label="Password"
+          icon={LockIcon}
           name="password"
           type="password"
           autoComplete="current-password"
@@ -81,7 +106,19 @@ export default function Login() {
           onChange={set('password')}
           error={errors.password}
         />
-        <button className="btn btn-primary btn-block" type="submit" disabled={submitting}>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+          />
+          <span className="check-box" aria-hidden="true">
+            <CheckIcon />
+          </span>
+          Remember me
+        </label>
+        <button className="btn btn-primary btn-block btn-signin" type="submit" disabled={submitting}>
+          {!submitting && <ArrowRightIcon />}
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
