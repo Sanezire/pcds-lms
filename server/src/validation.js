@@ -80,5 +80,8 @@ export function validateLogin(body = {}) {
   if (!password) errors.password = 'Enter your password.';
   else if (password.length > 1024) errors.password = 'That value is too long.';
 
-  return { errors, values: { identifier, password } };
+  // Only a real boolean true counts; anything else means a normal sign-in.
+  const remember = body.remember === true;
+
+  return { errors, values: { identifier, password, remember } };
 }

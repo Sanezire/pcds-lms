@@ -25,7 +25,10 @@ export const config = {
   },
   session: {
     cookieName: process.env.COOKIE_NAME || 'pcds_sid',
+    // Normal sign-in: lasts this long and the cookie is dropped when the browser closes.
     ttlHours: num(process.env.SESSION_TTL_HOURS, 8),
+    // "Remember me" sign-in: a persistent cookie that lasts this many days.
+    rememberTtlDays: num(process.env.REMEMBER_TTL_DAYS, 30),
   },
   attendance: {
     utcOffsetMinutes: Number.isFinite(utcOffset) ? utcOffset : 480,

@@ -58,7 +58,7 @@ export default function Login() {
 
     setSubmitting(true);
     try {
-      await login(values.identifier.trim(), values.password);
+      await login(values.identifier.trim(), values.password, remember);
       writeRemembered(remember ? values.identifier.trim() : '');
       navigate(from && from !== '/login' ? from : '/dashboard', { replace: true });
     } catch (err) {

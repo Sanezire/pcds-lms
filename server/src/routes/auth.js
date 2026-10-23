@@ -123,10 +123,10 @@ router.post('/login', loginIpLimiter, loginIdentifierLimiter, async (req, res, n
       throw httpError(403, 'This account is waiting for approval.');
     }
 
-    const token = await createSession(user.id, req);
+    const token = await createSession(user.id, req, values.remember);
     await query('UPDATE users SET last_login_at = UTC_TIMESTAMP() WHERE id = ?', [user.id]);
 
-    res.cookie(config.session.cookieName, token, cookieOptions());
+    res.cookie(config.session.cookieName, token, cookieOptions(values.remember));
     res.json({ user: toPublicUser(user) });
   } catch (err) {
     next(err);

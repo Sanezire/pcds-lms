@@ -4,19 +4,28 @@ import { config } from './config.js';
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
-export function cookieOptions() {
-  return {
+const HOUR_MS = 60 * 60 * 1000;
+
+function sessionLifetimeMs(remember) {
+  return remember ? config.session.rememberTtlDays * 24 * HOUR_MS : config.session.ttlHours * HOUR_MS;
+}
+
+// Without "remember", no maxAge is set, so the browser keeps the cookie only
+// until it is closed. With it, the cookie persists for the longer lifetime.
+export function cookieOptions(remember = false) {
+  const options = {
     httpOnly: true,
     secure: config.isProd,
     sameSite: 'lax',
     path: '/',
-    maxAge: config.session.ttlHours * 60 * 60 * 1000,
   };
+  if (remember) options.maxAge = sessionLifetimeMs(true);
+  return options;
 }
 
-export async function createSession(userId, req) {
+export async function createSession(userId, req, remember = false) {
   const token = crypto.randomBytes(32).toString('base64url');
-  const expiresAt = new Date(Date.now() + config.session.ttlHours * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + sessionLifetimeMs(remember));
 
   await query(
     `INSERT INTO sessions (user_id, token_hash, ip_address, user_agent, expires_at)
