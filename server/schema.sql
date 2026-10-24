@@ -75,11 +75,13 @@ CREATE TABLE IF NOT EXISTS manual_attendance (
   CONSTRAINT fk_manual_attendance_user FOREIGN KEY (recorded_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Custom messages shown on the kiosk when a specific student ID is scanned.
+-- Custom messages shown on the kiosk when a specific student ID is scanned:
+-- one for Time In and one for Time Out.
 CREATE TABLE IF NOT EXISTS message_rules (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   student_id  VARCHAR(32)     NOT NULL,
-  message     VARCHAR(500)    NOT NULL,
+  message     VARCHAR(500)    NOT NULL,                -- shown on Time In ('' = none)
+  message_out VARCHAR(500)    NOT NULL DEFAULT '',     -- shown on Time Out ('' = none)
   enabled     TINYINT(1)      NOT NULL DEFAULT 1,
   created_by  BIGINT UNSIGNED NULL,
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,

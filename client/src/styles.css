@@ -1192,3 +1192,17 @@ a:hover {
     margin-right: 0;
   }
 }
+.form-hint {
+  margin: -6px 0 16px;
+}
+.rule-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--blue-700);
+  background: var(--blue-100);
+  border: 1px solid var(--blue-200);
+  border-radius: 999px;
+}

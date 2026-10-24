@@ -120,6 +120,13 @@ export function cleanMessage(value) {
     .trim();
 }
 
+// For fields that may be left empty (an ID can have just a Time In or just a Time Out message).
+export function validateOptionalMessage(value) {
+  const message = cleanMessage(value);
+  if (message.length > MESSAGE_MAX) return { error: `Messages can be up to ${MESSAGE_MAX} characters.`, message };
+  return { error: null, message };
+}
+
 export function validateMessageText(value) {
   const message = cleanMessage(value);
   if (!message) return { error: 'Enter a message.', message };

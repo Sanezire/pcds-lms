@@ -17,6 +17,20 @@ const connection = await mysql.createConnection({
 
 try {
   await connection.query(sql);
+
+  // CREATE TABLE IF NOT EXISTS does not change tables that already exist, so
+  // columns added later are applied here. Safe to run any number of times.
+  const [found] = await connection.query(
+    `SELECT COUNT(*) AS n FROM information_schema.columns
+      WHERE table_schema = DATABASE() AND table_name = 'message_rules' AND column_name = 'message_out'`
+  );
+  if (!found[0].n) {
+    await connection.query(
+      `ALTER TABLE message_rules ADD COLUMN message_out VARCHAR(500) NOT NULL DEFAULT '' AFTER message`
+    );
+    console.log('Added message_rules.message_out.');
+  }
+
   console.log('Database schema is ready.');
 } finally {
   await connection.end();

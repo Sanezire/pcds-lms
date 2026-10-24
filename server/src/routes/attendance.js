@@ -64,15 +64,16 @@ router.post('/scan', async (req, res, next) => {
     );
 
     // A custom message set for this ID (for example the PCDS admin) is shown
-    // by the kiosk before the result. Repeat taps above do not include it.
+    // by the kiosk before the result: the Time In message on Time In, the
+    // Time Out message on Time Out. Repeat taps above do not include it.
     const rules = await query(
-      'SELECT message FROM message_rules WHERE student_id = ? AND enabled = 1 LIMIT 1',
+      'SELECT message, message_out FROM message_rules WHERE student_id = ? AND enabled = 1 LIMIT 1',
       [String(student.member_id).toUpperCase()]
     );
 
     res.json({
       attendance: { studentId: student.member_id, action, recordedAt: now.toISOString() },
-      message: rules[0] ? rules[0].message : null,
+      message: (rules[0] && (action === 'in' ? rules[0].message : rules[0].message_out)) || null,
     });
   } catch (err) {
     next(err);

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { ROLES } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
-import { validateMessageText, validateRuleId } from '../validation.js';
+import { validateMessageText, validateOptionalMessage, validateRuleId } from '../validation.js';
 
 const router = Router();
 
@@ -13,8 +13,12 @@ const toRule = (r) => ({
   id: r.id,
   studentId: r.student_id,
   message: r.message,
+  messageOut: r.message_out,
   enabled: Boolean(r.enabled),
 });
+
+const RULE_COLUMNS = 'id, student_id, message, message_out, enabled';
+const NEED_ONE = 'Enter a Time In message, a Time Out message, or both.';
 
 const parseId = (value) => {
   const id = Number(value);
@@ -27,7 +31,7 @@ const parseId = (value) => {
 router.get('/rules', async (req, res, next) => {
   try {
     const rows = await query(
-      'SELECT id, student_id, message, enabled FROM message_rules ORDER BY student_id'
+      `SELECT ${RULE_COLUMNS} FROM message_rules ORDER BY student_id`
     );
     res.json({ rules: rows.map(toRule) });
   } catch (err) {
@@ -38,23 +42,25 @@ router.get('/rules', async (req, res, next) => {
 router.post('/rules', async (req, res, next) => {
   try {
     const id = validateRuleId(req.body?.studentId);
-    const text = validateMessageText(req.body?.message);
+    const messageIn = validateOptionalMessage(req.body?.message);
+    const messageOut = validateOptionalMessage(req.body?.messageOut);
     const fields = {};
     if (id.error) fields.studentId = id.error;
-    if (text.error) fields.message = text.error;
+    if (messageIn.error) fields.message = messageIn.error;
+    if (messageOut.error) fields.messageOut = messageOut.error;
+    if (!messageIn.error && !messageOut.error && !messageIn.message && !messageOut.message) {
+      fields.message = NEED_ONE;
+    }
     if (Object.keys(fields).length) {
       throw httpError(400, 'Check the highlighted fields and try again.', fields);
     }
 
     try {
       const result = await query(
-        'INSERT INTO message_rules (student_id, message, enabled, created_by) VALUES (?, ?, 1, ?)',
-        [id.studentId, text.message, req.user.id]
+        'INSERT INTO message_rules (student_id, message, message_out, enabled, created_by) VALUES (?, ?, ?, 1, ?)',
+        [id.studentId, messageIn.message, messageOut.message, req.user.id]
       );
-      const rows = await query(
-        'SELECT id, student_id, message, enabled FROM message_rules WHERE id = ?',
-        [result.insertId]
-      );
+      const rows = await query(`SELECT ${RULE_COLUMNS} FROM message_rules WHERE id = ?`, [result.insertId]);
       res.status(201).json({ rule: toRule(rows[0]) });
     } catch (err) {
       if (err.code === 'ER_DUP_ENTRY') {
@@ -69,20 +75,32 @@ router.post('/rules', async (req, res, next) => {
   }
 });
 
-// Edit the text and/or switch a message on or off. The ID cannot change;
+// Edit the messages and/or switch the ID's messages on or off. The ID cannot change;
 // delete the message and add a new one instead.
 router.patch('/rules/:id', async (req, res, next) => {
   try {
     const id = parseId(req.params.id);
+    const current = (await query(`SELECT ${RULE_COLUMNS} FROM message_rules WHERE id = ?`, [id]))[0];
+    if (!current) throw httpError(404, 'Message not found.');
+
     const sets = [];
     const params = [];
+    const merged = { message: current.message, messageOut: current.message_out };
+    const fields = {};
 
-    if (req.body?.message !== undefined) {
-      const text = validateMessageText(req.body.message);
-      if (text.error) throw httpError(400, text.error, { message: text.error });
-      sets.push('message = ?');
-      params.push(text.message);
+    for (const [key, column] of [['message', 'message'], ['messageOut', 'message_out']]) {
+      if (req.body?.[key] === undefined) continue;
+      const checked = validateOptionalMessage(req.body[key]);
+      if (checked.error) fields[key] = checked.error;
+      merged[key] = checked.message;
+      sets.push(`${column} = ?`);
+      params.push(checked.message);
     }
+    if (!Object.keys(fields).length && sets.length && !merged.message && !merged.messageOut) {
+      fields.message = NEED_ONE;
+    }
+    if (Object.keys(fields).length) throw httpError(400, 'Check the highlighted fields and try again.', fields);
+
     if (req.body?.enabled !== undefined) {
       if (typeof req.body.enabled !== 'boolean') throw httpError(400, 'Invalid value.');
       sets.push('enabled = ?');
@@ -91,11 +109,7 @@ router.patch('/rules/:id', async (req, res, next) => {
     if (!sets.length) throw httpError(400, 'Nothing to update.');
 
     await query(`UPDATE message_rules SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
-    const rows = await query(
-      'SELECT id, student_id, message, enabled FROM message_rules WHERE id = ?',
-      [id]
-    );
-    if (!rows[0]) throw httpError(404, 'Message not found.');
+    const rows = await query(`SELECT ${RULE_COLUMNS} FROM message_rules WHERE id = ?`, [id]);
     res.json({ rule: toRule(rows[0]) });
   } catch (err) {
     next(err);

@@ -88,13 +88,15 @@ function SendNow() {
 }
 
 function IdMessages() {
-  const msgId = useId();
+  const inId = useId();
+  const outId = useId();
   const formRef = useRef(null);
   const [rules, setRules] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [editing, setEditing] = useState(null); // rule being edited, or null when adding
   const [studentId, setStudentId] = useState('');
   const [message, setMessage] = useState('');
+  const [messageOut, setMessageOut] = useState('');
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -118,6 +120,7 @@ function IdMessages() {
     setEditing(null);
     setStudentId('');
     setMessage('');
+    setMessageOut('');
     setErrors({});
     setFormError('');
   }
@@ -126,6 +129,7 @@ function IdMessages() {
     setEditing(rule);
     setStudentId(rule.studentId);
     setMessage(rule.message);
+    setMessageOut(rule.messageOut);
     setErrors({});
     setFormError('');
     formRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -136,16 +140,16 @@ function IdMessages() {
     setFormError('');
     const found = {};
     if (!editing && !studentId.trim()) found.studentId = 'Enter a student ID.';
-    if (!message.trim()) found.message = 'Enter a message.';
+    if (!message.trim() && !messageOut.trim()) found.message = 'Enter a Time In message, a Time Out message, or both.';
     setErrors(found);
     if (Object.keys(found).length) return;
 
     setSaving(true);
     try {
       if (editing) {
-        await api(`/messages/rules/${editing.id}`, { method: 'PATCH', body: { message } });
+        await api(`/messages/rules/${editing.id}`, { method: 'PATCH', body: { message, messageOut } });
       } else {
-        await api('/messages/rules', { method: 'POST', body: { studentId, message } });
+        await api('/messages/rules', { method: 'POST', body: { studentId, message, messageOut } });
       }
       resetForm();
       await load();
@@ -170,7 +174,7 @@ function IdMessages() {
   }
 
   async function remove(rule) {
-    if (!window.confirm(`Delete the message for ID ${rule.studentId}?`)) return;
+    if (!window.confirm(`Delete the messages for ID ${rule.studentId}?`)) return;
     setBusyId(rule.id);
     try {
       await api(`/messages/rules/${rule.id}`, { method: 'DELETE' });
@@ -186,7 +190,7 @@ function IdMessages() {
   return (
     <div className="msg-section">
       <h3>Messages for specific IDs</h3>
-      <p className="muted">When one of these IDs is scanned, the kiosk shows the message after recording attendance.</p>
+      <p className="muted">When one of these IDs is scanned, the kiosk shows the Time In or Time Out message after recording attendance.</p>
 
       <form onSubmit={onSubmit} noValidate ref={formRef} className="rule-form">
         {formError && (
@@ -207,8 +211,8 @@ function IdMessages() {
           error={errors.studentId}
         />
         <MessageBox
-          id={msgId}
-          label="Message"
+          id={inId}
+          label="Time In message"
           value={message}
           onChange={(e) => {
             setMessage(e.target.value);
@@ -216,6 +220,17 @@ function IdMessages() {
           }}
           error={errors.message}
         />
+        <MessageBox
+          id={outId}
+          label="Time Out message"
+          value={messageOut}
+          onChange={(e) => {
+            setMessageOut(e.target.value);
+            setErrors((er) => ({ ...er, messageOut: undefined }));
+          }}
+          error={errors.messageOut}
+        />
+        <p className="hint form-hint">Fill in one or both. Leave one empty to show nothing on that scan.</p>
         <div className="msg-actions">
           {editing && (
             <button type="button" className="btn btn-quiet btn-lg" onClick={resetForm}>
@@ -241,7 +256,16 @@ function IdMessages() {
             <li key={r.id} className={`rule${r.enabled ? '' : ' is-off'}`}>
               <div className="rule-body">
                 <span className="rule-id">{r.studentId}</span>
-                <span className="rule-text">{r.message}</span>
+                {r.message && (
+                  <span className="rule-text">
+                    <span className="rule-tag">Time In</span> {r.message}
+                  </span>
+                )}
+                {r.messageOut && (
+                  <span className="rule-text">
+                    <span className="rule-tag">Time Out</span> {r.messageOut}
+                  </span>
+                )}
               </div>
               <div className="rule-actions">
                 <label className="rule-switch">
