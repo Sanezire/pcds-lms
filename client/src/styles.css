@@ -1423,3 +1423,14 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* Icon-only add button */
+.btn.btn-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  flex: none;
+}

@@ -52,3 +52,9 @@ export const CheckIcon = (props) => (
     <path d="m5 12.5 4.5 4.5L19 7.5" />
   </svg>
 );
+
+export const PlusIcon = (props) => (
+  <svg {...base} strokeWidth={2.4} {...props}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);

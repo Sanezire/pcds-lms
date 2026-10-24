@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
+import { PlusIcon } from './Icons.jsx';
 import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
 import { confirmDelete } from '../confirm.js';
@@ -343,9 +344,8 @@ function IdMessages() {
             When one of these IDs is scanned, the kiosk shows the Time In or Time Out message after recording attendance.
           </p>
         </div>
-        <button type="button" className="btn btn-primary btn-lg" onClick={startAdd}>
-          <img className="btn-icon" src="/images/add_message_icon.png" alt="" />
-          Add message
+        <button type="button" className="btn btn-primary btn-add" onClick={startAdd} aria-label="Add message" title="Add message">
+          <PlusIcon width={24} height={24} />
         </button>
       </div>
 
