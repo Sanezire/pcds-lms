@@ -440,6 +440,35 @@ a:hover {
   background: var(--blue-100);
 }
 
+/* Icons inside headings and buttons */
+.title-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.title-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex: none;
+}
+.btn:has(.btn-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex: none;
+}
+/* The icons are teal; show them white on the blue primary buttons. */
+.btn-primary .btn-icon {
+  filter: brightness(0) invert(1);
+}
+
 /* ---------- App shell ---------- */
 .topbar {
   display: flex;

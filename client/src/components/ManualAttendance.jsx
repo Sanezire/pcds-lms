@@ -243,10 +243,14 @@ export default function ManualAttendance() {
     <section className="panel" aria-labelledby="manual-h">
       <div className="panel-head">
         <div>
-          <h2 id="manual-h">Manual attendance</h2>
+          <h2 id="manual-h" className="title-with-icon">
+            <img className="title-icon" src="/images/manual_attendance_icon.png" alt="" />
+            Manual attendance
+          </h2>
           <p className="muted">For students without an RFID card.</p>
         </div>
         <button type="button" className="btn btn-primary btn-lg" onClick={() => setModal({ type: 'new' })}>
+          <img className="btn-icon" src="/images/add_student_icon.png" alt="" />
           Add student
         </button>
       </div>

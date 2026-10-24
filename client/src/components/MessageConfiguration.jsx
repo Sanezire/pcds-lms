@@ -208,6 +208,7 @@ function SendNow() {
           View sent messages
         </button>
         <button type="submit" className="btn btn-primary btn-lg" disabled={sending}>
+          <img className="btn-icon" src="/images/add_message_icon.png" alt="" />
           {sending ? 'Sending…' : 'Send to kiosk'}
         </button>
       </div>
@@ -369,6 +370,7 @@ function IdMessages() {
             </button>
           )}
           <button type="submit" className="btn btn-primary btn-lg" disabled={saving}>
+            {!editing && <img className="btn-icon" src="/images/add_message_icon.png" alt="" />}
             {saving ? 'Saving…' : editing ? 'Save changes' : 'Add message'}
           </button>
         </div>
@@ -428,7 +430,10 @@ export default function MessageConfiguration() {
     <section className="panel" aria-labelledby="msgcfg-h">
       <div className="panel-head">
         <div>
-          <h2 id="msgcfg-h">Message Configuration</h2>
+          <h2 id="msgcfg-h" className="title-with-icon">
+            <img className="title-icon" src="/images/message_configuration_icon.png" alt="" />
+            Message Configuration
+          </h2>
           <p className="muted">Messages appear on the kiosk as a pop-up for 5 seconds.</p>
         </div>
       </div>
