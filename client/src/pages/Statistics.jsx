@@ -168,6 +168,9 @@ export default function Statistics() {
             <span className="duration-label">to</span>
             <NumberBox label="Maximum hours" value={filters.maxH} onChange={set('maxH')} max="9999" />
             <NumberBox label="Maximum minutes" value={filters.maxM} onChange={set('maxM')} max="59999" />
+            <button type="button" className="btn btn-quiet reset-btn" onClick={onReset} disabled={!isFiltered}>
+              Reset filters
+            </button>
           </div>
           <p className="hint">Leave a side empty for no limit. Students still in are counted from Time In until now.</p>
         </fieldset>
@@ -178,11 +181,6 @@ export default function Statistics() {
           </div>
         )}
 
-        <div className="filter-actions">
-          <button type="button" className="btn btn-quiet btn-lg" onClick={onReset} disabled={!isFiltered}>
-            Reset filters
-          </button>
-        </div>
       </form>
 
       {error && (

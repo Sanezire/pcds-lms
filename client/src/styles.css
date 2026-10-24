@@ -1031,3 +1031,17 @@ a:hover {
   opacity: 0.6;
   transition: opacity 0.15s;
 }
+
+/* Reset button sits at the right end of the time-spent row */
+.reset-btn {
+  margin-left: auto;
+  min-height: 46px;
+  padding: 10px 20px;
+}
+@media (max-width: 600px) {
+  .reset-btn {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 6px;
+  }
+}
