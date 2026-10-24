@@ -1206,3 +1206,49 @@ a:hover {
   border: 1px solid var(--blue-200);
   border-radius: 999px;
 }
+
+.sent-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+}
+.sent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.sent-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.sent-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sent-time {
+  font-size: 0.8125rem;
+}
+.sent-confirm {
+  margin-right: auto;
+  font-weight: 600;
+  color: var(--danger);
+}
+.btn-danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn-danger-solid:hover {
+  background: var(--danger);
+  filter: brightness(0.92);
+}

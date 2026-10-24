@@ -140,8 +140,55 @@ router.post('/broadcast', async (req, res, next) => {
     await query('INSERT INTO kiosk_broadcasts (message, created_by) VALUES (?, ?)', [text.message, req.user.id]);
     // Old rows are only history; keep the table small.
     await query('DELETE FROM kiosk_broadcasts WHERE created_at < (NOW() - INTERVAL 7 DAY)');
+    publish('messages');
 
     res.status(201).json({ message: 'Sent to the kiosk.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Every direct message sent to the kiosk, newest first, so staff can review or
+// remove them. Messages for specific IDs are separate and not listed here.
+// The age is measured by the database itself so it is right in any time zone.
+router.get('/broadcasts', async (req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT id, message, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age_seconds
+         FROM kiosk_broadcasts
+        ORDER BY id DESC
+        LIMIT 200`
+    );
+    const now = Date.now();
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      broadcasts: rows.map((r) => ({
+        id: r.id,
+        text: r.message,
+        sentAt: new Date(now - Math.max(Number(r.age_seconds), 0) * 1000).toISOString(),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/broadcasts', async (req, res, next) => {
+  try {
+    const result = await query('DELETE FROM kiosk_broadcasts');
+    publish('messages');
+    res.json({ message: 'Deleted.', deleted: result.affectedRows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/broadcasts/:id', async (req, res, next) => {
+  try {
+    const result = await query('DELETE FROM kiosk_broadcasts WHERE id = ?', [parseId(req.params.id)]);
+    if (!result.affectedRows) throw httpError(404, 'Message not found.');
+    publish('messages');
+    res.json({ message: 'Deleted.' });
   } catch (err) {
     next(err);
   }

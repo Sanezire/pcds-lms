@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
+import Modal from './Modal.jsx';
 
 const MAX = 500;
 
@@ -35,12 +36,135 @@ function MessageBox({ label, value, onChange, error, id }) {
   );
 }
 
+const sentFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+// Every message sent to the kiosk, with delete and delete all. Messages for
+// specific IDs are managed in their own section and are not listed here.
+function SentMessages({ onClose }) {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api('/messages/broadcasts');
+      setItems(data.broadcasts);
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // New sends, and deletes made from another screen, show up while this is open.
+  useLiveReload(['messages'], load);
+
+  async function remove(item) {
+    setBusyId(item.id);
+    setError('');
+    try {
+      await api(`/messages/broadcasts/${item.id}`, { method: 'DELETE' });
+      setItems((list) => (list ? list.filter((m) => m.id !== item.id) : list));
+    } catch (err) {
+      // Already gone (for example deleted on another screen): just refresh.
+      if (err.status !== 404) setError(err.message);
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeAll() {
+    setClearing(true);
+    setError('');
+    try {
+      await api('/messages/broadcasts', { method: 'DELETE' });
+      setItems([]);
+      setConfirmAll(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  const count = items?.length || 0;
+
+  return (
+    <Modal title="Messages sent to the kiosk" onClose={onClose}>
+      <p className="modal-note">Direct messages only. Messages for specific IDs are not listed here.</p>
+      {error && (
+        <div className="alert alert-error" role="alert">
+          {error}
+        </div>
+      )}
+      {!items && !error && <p className="muted">Loading messages…</p>}
+      {items && count === 0 && <p className="empty">No messages have been sent to the kiosk.</p>}
+      {count > 0 && (
+        <ul className="sent-list">
+          {items.map((m) => (
+            <li key={m.id} className="sent-item">
+              <div className="sent-body">
+                <span className="sent-text">{m.text}</span>
+                <span className="muted sent-time">{sentFormat.format(new Date(m.sentAt))}</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-quiet btn-danger"
+                onClick={() => remove(m)}
+                disabled={busyId === m.id || clearing}
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="modal-actions">
+        {confirmAll ? (
+          <>
+            <span className="sent-confirm" role="alert">
+              Delete all {count} {count === 1 ? 'message' : 'messages'}?
+            </span>
+            <button type="button" className="btn btn-quiet btn-lg" onClick={() => setConfirmAll(false)} disabled={clearing}>
+              Keep them
+            </button>
+            <button type="button" className="btn btn-primary btn-lg btn-danger-solid" onClick={removeAll} disabled={clearing}>
+              {clearing ? 'Deleting…' : 'Yes, delete all'}
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn btn-quiet btn-lg" onClick={onClose}>
+              Close
+            </button>
+            <button
+              type="button"
+              className="btn btn-quiet btn-lg btn-danger"
+              onClick={() => setConfirmAll(true)}
+              disabled={count === 0}
+            >
+              Delete all
+            </button>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function SendNow() {
   const id = useId();
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [sending, setSending] = useState(false);
+  const [showSent, setShowSent] = useState(false);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -80,10 +204,14 @@ function SendNow() {
         <span className="status-text" role="status">
           {status}
         </span>
+        <button type="button" className="btn btn-quiet btn-lg" onClick={() => setShowSent(true)}>
+          View sent messages
+        </button>
         <button type="submit" className="btn btn-primary btn-lg" disabled={sending}>
           {sending ? 'Sending…' : 'Send to kiosk'}
         </button>
       </div>
+      {showSent && <SentMessages onClose={() => setShowSent(false)} />}
     </form>
   );
 }
