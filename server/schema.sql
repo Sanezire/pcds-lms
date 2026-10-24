@@ -51,3 +51,26 @@ CREATE TABLE IF NOT EXISTS attendance (
   CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
   CONSTRAINT fk_attendance_kiosk FOREIGN KEY (kiosk_user_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Manual attendance for students without an RFID card. One row per visit:
+-- time_out stays NULL while the student is still in. active_student_id is
+-- the student ID only while time_out is NULL, and its UNIQUE key means the
+-- database itself refuses a second open entry for the same student.
+CREATE TABLE IF NOT EXISTS manual_attendance (
+  id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  student_id        VARCHAR(32)     NOT NULL,
+  student_name      VARCHAR(100)    NOT NULL,
+  course            VARCHAR(100)    NOT NULL,
+  gender            ENUM('male', 'female', 'other') NOT NULL,
+  time_in           DATETIME        NOT NULL,
+  time_out          DATETIME        NULL,
+  recorded_by       BIGINT UNSIGNED NULL,
+  created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  active_student_id VARCHAR(32) GENERATED ALWAYS AS (IF(time_out IS NULL, student_id, NULL)) STORED,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_manual_attendance_active (active_student_id),
+  KEY idx_manual_attendance_time_in (time_in),
+  KEY idx_manual_attendance_student (student_id, time_in),
+  CONSTRAINT fk_manual_attendance_user FOREIGN KEY (recorded_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

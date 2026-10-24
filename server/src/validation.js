@@ -85,3 +85,26 @@ export function validateLogin(body = {}) {
 
   return { errors, values: { identifier, password, remember } };
 }
+
+export const GENDERS = Object.freeze(['male', 'female', 'other']);
+
+export function validateManualAttendance(body = {}) {
+  const name = asString(body.name).trim().replace(/\s+/g, ' ');
+  const studentId = normalizeMemberId(body.studentId);
+  const course = asString(body.course).trim().replace(/\s+/g, ' ');
+  const gender = asString(body.gender).trim().toLowerCase();
+  const errors = {};
+
+  if (name.length < 2 || name.length > 100) errors.name = 'Enter the student’s full name (2 to 100 characters).';
+  else if (!NAME_RE.test(name)) errors.name = 'Name can only contain letters, spaces, periods, apostrophes and hyphens.';
+
+  if (!studentId) errors.studentId = 'Enter the student ID.';
+  else if (studentId.length < 3 || studentId.length > 32 || !MEMBER_ID_RE.test(studentId))
+    errors.studentId = 'ID must be 3 to 32 characters using letters, numbers, hyphens, underscores or slashes.';
+
+  if (course.length < 2 || course.length > 100) errors.course = 'Enter the course (2 to 100 characters).';
+
+  if (!GENDERS.includes(gender)) errors.gender = 'Choose a gender.';
+
+  return { errors, values: { name, studentId, course, gender } };
+}

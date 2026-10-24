@@ -9,6 +9,7 @@ import { apiLimiter } from './middleware/rateLimit.js';
 import { requireCustomHeader } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import attendanceRoutes from './routes/attendance.js';
+import manualAttendanceRoutes from './routes/manualAttendance.js';
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api', apiLimiter, requireCustomHeader);
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/manual-attendance', manualAttendanceRoutes);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: { message: 'Not found.' } });
