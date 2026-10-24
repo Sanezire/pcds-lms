@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api } from '../api.js';
+import { useLiveData } from '../live.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 
 export default function Members() {
@@ -19,9 +20,8 @@ export default function Members() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Loads now and again whenever accounts change anywhere, no refresh needed.
+  useLiveData(['users'], load);
 
   async function update(id, change) {
     setBusyId(id);

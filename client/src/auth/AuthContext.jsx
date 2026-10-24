@@ -38,9 +38,20 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // Reloads the signed-in account. If the session was ended on the server
+  // (role changed, account suspended), the user is signed out right away.
+  const refresh = useCallback(async () => {
+    try {
+      const data = await api('/auth/me');
+      setUser(data.user);
+    } catch {
+      /* keep the current user on a network error */
+    }
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, login, register, logout }),
-    [user, loading, login, register, logout]
+    () => ({ user, loading, login, register, logout, refresh }),
+    [user, loading, login, register, logout, refresh]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

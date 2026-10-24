@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { ROLES, STATUSES } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { destroyUserSessions, toPublicUser } from '../sessions.js';
+import { publish, TOPICS } from '../events.js';
 
 const router = Router();
 
@@ -55,6 +56,7 @@ router.patch('/users/:id', requireRole(ROLES.ADMIN), async (req, res, next) => {
 
     // Force the user to sign in again so the new role or status applies immediately.
     await destroyUserSessions(id);
+    publish(TOPICS.USERS);
 
     res.json({ message: 'User updated.' });
   } catch (err) {

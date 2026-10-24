@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { config, ROLES } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
+import { publish, TOPICS } from '../events.js';
+import { computeStats } from '../attendanceStats.js';
 
 const router = Router();
 
@@ -63,8 +65,37 @@ router.post('/scan', async (req, res, next) => {
       [student.id, action, now, req.user.id]
     );
 
+    publish(TOPICS.ATTENDANCE);
+
     res.json({
       attendance: { studentId: student.member_id, action, recordedAt: now.toISOString() },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Today's totals for the dashboard. The browser keeps the "total time" counter
+// ticking by itself from the open Time In timestamps, and reloads whenever an
+// "attendance" event arrives.
+router.get('/stats', async (req, res, next) => {
+  try {
+    const now = new Date();
+    const dayStart = startOfLocalDayUtc(now.getTime());
+    const rows = await query(
+      `SELECT user_id, action, recorded_at FROM attendance
+        WHERE recorded_at >= ?
+        ORDER BY user_id, recorded_at, id
+        LIMIT 50000`,
+      [dayStart]
+    );
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      stats: {
+        ...computeStats(rows),
+        serverTime: now.toISOString(),
+        dayEndsAt: new Date(dayStart.getTime() + DAY_MS).toISOString(),
+      },
     });
   } catch (err) {
     next(err);

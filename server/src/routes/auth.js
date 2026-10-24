@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
+import { publish, TOPICS } from '../events.js';
 import bcrypt from 'bcrypt';
 import { query } from '../db.js';
 import { config, ROLES } from '../config.js';
@@ -89,6 +90,7 @@ router.post('/register', registerLimiter, async (req, res, next) => {
       throw err;
     }
 
+    publish(TOPICS.USERS);
     res.status(201).json({ message: 'Administrator account created. You can sign in now.' });
   } catch (err) {
     next(err);

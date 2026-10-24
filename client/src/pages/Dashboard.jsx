@@ -1,5 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import LiveStats from '../components/LiveStats.jsx';
+import { useLiveData } from '../live.js';
+
+const STAFF_ROLES = ['admin', 'librarian'];
 
 const ROLE_COPY = {
   admin: 'You can manage accounts, assign roles and suspend access.',
@@ -7,10 +11,18 @@ const ROLE_COPY = {
   student: 'Your account is active. Kiosk features will appear here.',
 };
 
+// Keeps the account details live: a role or status change made by an admin
+// shows up here immediately (or signs the person out if access was removed).
+function LiveAccount({ refresh }) {
+  useLiveData(['users'], refresh);
+  return null;
+}
+
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
+  const isStaff = STAFF_ROLES.includes(user.role);
   const firstName = user.fullName.split(' ')[0];
-  const canManage = user.role === 'admin' || user.role === 'librarian';
+  const canManage = isStaff;
 
   return (
     <div className="dashboard">
@@ -40,6 +52,9 @@ export default function Dashboard() {
           </div>
         </dl>
       </section>
+
+      {isStaff && <LiveAccount refresh={refresh} />}
+      {isStaff && <LiveStats />}
 
       {canManage && (
         <nav className="tiles" aria-label="Quick actions">
