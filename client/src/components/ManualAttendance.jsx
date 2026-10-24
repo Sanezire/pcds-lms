@@ -277,7 +277,7 @@ export default function ManualAttendance() {
         <div>
           <h2 id="manual-h" className="title-with-icon">
             <img className="title-icon" src="/images/manual_attendance_icon.png" alt="" />
-            Manual attendance
+            Manual Attendance
           </h2>
           <p className="muted">For students without an RFID card.</p>
         </div>
@@ -328,7 +328,7 @@ export default function ManualAttendance() {
       )}
 
       {modal?.type === 'new' && (
-        <Modal title="Manual attendance" onClose={close}>
+        <Modal title="Manual Attendance" onClose={close}>
           <NewEntryForm onSaved={saved} onClose={close} />
         </Modal>
       )}
