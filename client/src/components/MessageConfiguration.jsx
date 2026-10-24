@@ -4,6 +4,7 @@ import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
 import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
+import { confirmDelete } from '../confirm.js';
 
 const MAX = 500;
 
@@ -306,7 +307,11 @@ function IdMessages() {
   }
 
   async function remove(rule) {
-    if (!window.confirm(`Delete the messages for ID ${rule.studentId}?`)) return;
+    const ok = await confirmDelete({
+      title: 'Delete these messages?',
+      text: `The Time In and Time Out messages for ID ${rule.studentId} will be permanently removed.`,
+    });
+    if (!ok) return;
     setBusyId(rule.id);
     try {
       await api(`/messages/rules/${rule.id}`, { method: 'DELETE' });

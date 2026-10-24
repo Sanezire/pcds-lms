@@ -4,6 +4,7 @@ import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
 import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
+import { confirmDelete } from '../confirm.js';
 
 const EMPTY = { name: '', studentId: '', course: '', gender: '' };
 // Suggested in the Course box. Staff can still type any other course.
@@ -251,7 +252,11 @@ export default function ManualAttendance() {
   };
 
   async function remove(r) {
-    if (!window.confirm(`Delete the attendance record for ${r.name} (${r.studentId})?`)) return;
+    const ok = await confirmDelete({
+      title: 'Delete this record?',
+      text: `The attendance record for ${r.name} (${r.studentId}) will be permanently removed.`,
+    });
+    if (!ok) return;
     setBusyId(r.id);
     try {
       await api(`/manual-attendance/${r.id}`, { method: 'DELETE' });
