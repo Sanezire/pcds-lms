@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
@@ -221,7 +221,7 @@ function SendNow() {
 function IdMessages() {
   const inId = useId();
   const outId = useId();
-  const formRef = useRef(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [rules, setRules] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [editing, setEditing] = useState(null); // rule being edited, or null when adding
@@ -258,6 +258,16 @@ function IdMessages() {
     setFormError('');
   }
 
+  function closeForm() {
+    resetForm();
+    setFormOpen(false);
+  }
+
+  function startAdd() {
+    resetForm();
+    setFormOpen(true);
+  }
+
   function startEdit(rule) {
     setEditing(rule);
     setStudentId(rule.studentId);
@@ -265,7 +275,7 @@ function IdMessages() {
     setMessageOut(rule.messageOut);
     setErrors({});
     setFormError('');
-    formRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    setFormOpen(true);
   }
 
   async function onSubmit(e) {
@@ -284,7 +294,7 @@ function IdMessages() {
       } else {
         await api('/messages/rules', { method: 'POST', body: { studentId, message, messageOut } });
       }
-      resetForm();
+      closeForm();
       await load();
     } catch (err) {
       setFormError(err.message);
@@ -315,7 +325,7 @@ function IdMessages() {
     setBusyId(rule.id);
     try {
       await api(`/messages/rules/${rule.id}`, { method: 'DELETE' });
-      if (editing?.id === rule.id) resetForm();
+      if (editing?.id === rule.id) closeForm();
       await load();
     } catch (err) {
       setLoadError(err.message);
@@ -326,60 +336,72 @@ function IdMessages() {
 
   return (
     <div className="msg-section">
-      <h3>Messages for specific IDs</h3>
-      <p className="muted">When one of these IDs is scanned, the kiosk shows the Time In or Time Out message after recording attendance.</p>
-
-      <form onSubmit={onSubmit} noValidate ref={formRef} className="rule-form">
-        {formError && (
-          <div className="alert alert-error" role="alert">
-            {formError}
-          </div>
-        )}
-        <Field
-          label="Student ID"
-          name="ruleStudentId"
-          autoComplete="off"
-          value={studentId}
-          onChange={(e) => {
-            setStudentId(e.target.value);
-            setErrors((er) => ({ ...er, studentId: undefined }));
-          }}
-          disabled={Boolean(editing)}
-          error={errors.studentId}
-        />
-        <MessageBox
-          id={inId}
-          label="Time In message"
-          value={message}
-          onChange={(e) => {
-            setMessage(e.target.value);
-            setErrors((er) => ({ ...er, message: undefined }));
-          }}
-          error={errors.message}
-        />
-        <MessageBox
-          id={outId}
-          label="Time Out message"
-          value={messageOut}
-          onChange={(e) => {
-            setMessageOut(e.target.value);
-            setErrors((er) => ({ ...er, messageOut: undefined }));
-          }}
-          error={errors.messageOut}
-        />
-        <p className="hint form-hint">Fill in one or both. Leave one empty to show nothing on that scan.</p>
-        <div className="msg-actions">
-          {editing && (
-            <button type="button" className="btn btn-quiet btn-lg" onClick={resetForm}>
-              Cancel
-            </button>
-          )}
-          <button type="submit" className="btn btn-primary btn-lg" disabled={saving}>
-            {!editing && <img className="btn-icon" src="/images/add_message_icon.png" alt="" />}
-            {saving ? 'Saving…' : editing ? 'Save changes' : 'Add message'}
-          </button>
+      <div className="panel-head">
+        <div>
+          <h3>Messages for specific IDs</h3>
+          <p className="muted">
+            When one of these IDs is scanned, the kiosk shows the Time In or Time Out message after recording attendance.
+          </p>
         </div>
-      </form>
+        <button type="button" className="btn btn-primary btn-lg" onClick={startAdd}>
+          <img className="btn-icon" src="/images/add_message_icon.png" alt="" />
+          Add message
+        </button>
+      </div>
+
+      {formOpen && (
+        <Modal title={editing ? `Edit messages for ID ${editing.studentId}` : 'Add message for a specific ID'} onClose={closeForm}>
+          <form onSubmit={onSubmit} noValidate>
+            {formError && (
+              <div className="alert alert-error" role="alert">
+                {formError}
+              </div>
+            )}
+            <Field
+              label="Student ID"
+              name="ruleStudentId"
+              autoComplete="off"
+              value={studentId}
+              onChange={(e) => {
+                setStudentId(e.target.value);
+                setErrors((er) => ({ ...er, studentId: undefined }));
+              }}
+              disabled={Boolean(editing)}
+              error={errors.studentId}
+            />
+            <MessageBox
+              id={inId}
+              label="Time In message"
+              value={message}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                setErrors((er) => ({ ...er, message: undefined }));
+              }}
+              error={errors.message}
+            />
+            <MessageBox
+              id={outId}
+              label="Time Out message"
+              value={messageOut}
+              onChange={(e) => {
+                setMessageOut(e.target.value);
+                setErrors((er) => ({ ...er, messageOut: undefined }));
+              }}
+              error={errors.messageOut}
+            />
+            <p className="hint form-hint">Fill in one or both. Leave one empty to show nothing on that scan.</p>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-quiet btn-lg" onClick={closeForm}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary btn-lg" disabled={saving}>
+                {!editing && <img className="btn-icon" src="/images/add_message_icon.png" alt="" />}
+                {saving ? 'Saving…' : editing ? 'Save changes' : 'Add message'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {loadError && (
         <div className="alert alert-error" role="alert">
@@ -387,7 +409,7 @@ function IdMessages() {
         </div>
       )}
       {!rules && !loadError && <p className="muted">Loading messages…</p>}
-      {rules && rules.length === 0 && <p className="empty">No ID messages yet.</p>}
+      {rules && rules.length === 0 && <p className="empty">No ID messages yet. Select Add message to create one.</p>}
       {rules && rules.length > 0 && (
         <ul className="rule-list">
           {rules.map((r) => (

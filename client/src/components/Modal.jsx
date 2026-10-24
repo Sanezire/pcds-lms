@@ -20,7 +20,7 @@ export default function Modal({ title, onClose, className = '', children }) {
     const previouslyFocused = document.activeElement;
     const dialog = dialogRef.current;
     openModals.push(dialog);
-    const first = dialog.querySelector('input, select, textarea') || dialog.querySelector(FOCUSABLE);
+    const first = dialog.querySelector('input:not([disabled]), select:not([disabled]), textarea:not([disabled])') || dialog.querySelector(FOCUSABLE);
     (first || dialog).focus();
 
     const prevOverflow = document.body.style.overflow;
