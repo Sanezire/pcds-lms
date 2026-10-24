@@ -6,6 +6,7 @@ import { PlusIcon } from './Icons.jsx';
 import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
 import { confirmDelete } from '../confirm.js';
+import { showSuccessToast } from '../toast.js';
 
 const MAX = 500;
 
@@ -164,13 +165,11 @@ function SendNow() {
   const id = useId();
   const [text, setText] = useState('');
   const [error, setError] = useState('');
-  const [status, setStatus] = useState('');
   const [sending, setSending] = useState(false);
   const [showSent, setShowSent] = useState(false);
 
   async function onSubmit(e) {
     e.preventDefault();
-    setStatus('');
     if (!text.trim()) {
       setError('Enter a message.');
       return;
@@ -180,7 +179,7 @@ function SendNow() {
     try {
       await api('/messages/broadcast', { method: 'POST', body: { message: text } });
       setText('');
-      setStatus('Sent. It will appear on the kiosk within a few seconds.');
+      showSuccessToast('Sent', 'It will appear on the kiosk within a few seconds.');
     } catch (err) {
       setError(err.fields?.message || err.message);
     } finally {
@@ -203,9 +202,6 @@ function SendNow() {
         error={error}
       />
       <div className="msg-actions">
-        <span className="status-text" role="status">
-          {status}
-        </span>
         <button type="button" className="btn btn-quiet btn-lg" onClick={() => setShowSent(true)}>
           View sent messages
         </button>
