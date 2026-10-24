@@ -21,6 +21,7 @@ export default function AppShell() {
         </div>
         <nav aria-label="Main">
           <NavLink to="/dashboard">Dashboard</NavLink>
+          {canManage && <NavLink to="/statistics">Statistics</NavLink>}
           {canManage && <NavLink to="/kiosk">Kiosk</NavLink>}
         </nav>
         <div className="topbar-user">
