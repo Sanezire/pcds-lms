@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import attendanceRoutes from './routes/attendance.js';
 import manualAttendanceRoutes from './routes/manualAttendance.js';
 import statisticsRoutes from './routes/statistics.js';
+import messageRoutes from './routes/messages.js';
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/manual-attendance', manualAttendanceRoutes);
 app.use('/api/statistics', statisticsRoutes);
+app.use('/api/messages', messageRoutes);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: { message: 'Not found.' } });

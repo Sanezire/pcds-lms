@@ -12,6 +12,8 @@ const MIN_ID_LENGTH = 3;
 const MAX_ID_LENGTH = 32;
 const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const HEALTH_MS = 10000;
+const MESSAGE_MS = 5000; // a message pop-up closes by itself after this long
+const MESSAGE_POLL_MS = 3000; // how often the kiosk checks for messages sent from the dashboard
 
 const ACTION_LABEL = { in: 'Time In', out: 'Time Out' };
 
@@ -71,6 +73,34 @@ function Icon({ name }) {
   );
 }
 
+// Message pop-up. Closes on its own after 5 seconds, or sooner with Proceed.
+function KioskMessage({ text, onProceed }) {
+  const buttonRef = useRef(null);
+
+  useEffect(() => {
+    buttonRef.current?.focus();
+    const timer = setTimeout(onProceed, MESSAGE_MS);
+    return () => clearTimeout(timer);
+  }, [onProceed]);
+
+  return (
+    <div className="kiosk-overlay">
+      <div className="kiosk-message" role="dialog" aria-modal="true" aria-labelledby="kiosk-message-title">
+        <h2 id="kiosk-message-title" className="kiosk-message-title">
+          Message
+        </h2>
+        <p className="kiosk-message-text">{text}</p>
+        <div className="kiosk-message-bar" aria-hidden="true">
+          <span style={{ animationDuration: `${MESSAGE_MS}ms` }} />
+        </div>
+        <button ref={buttonRef} type="button" className="kiosk-message-btn" onClick={onProceed}>
+          Proceed
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Own component so the once-a-second tick does not re-render the whole screen.
 const LiveClock = memo(function LiveClock() {
   const [now, setNow] = useState(() => new Date());
@@ -93,8 +123,12 @@ export default function Kiosk() {
   const [online, setOnline] = useState(true);
   const [focused, setFocused] = useState(() => document.hasFocus());
 
+  const [messages, setMessages] = useState([]); // pop-ups waiting to be shown, first one is on screen
+
   const busyRef = useRef(false);
   const clearTimer = useRef(null);
+  const modalOpenRef = useRef(false);
+  const awaitingClearRef = useRef(false);
 
   const backToReady = useCallback(() => {
     setPhase('idle');
@@ -122,7 +156,8 @@ export default function Kiosk() {
 
   const submitScan = useCallback(
     async (code) => {
-      if (busyRef.current) return;
+      // Taps are ignored while a message pop-up is on screen.
+      if (busyRef.current || modalOpenRef.current) return;
       clearTimeout(clearTimer.current);
 
       if (code.length < MIN_ID_LENGTH || code.length > MAX_ID_LENGTH || !ID_PATTERN.test(code)) {
@@ -137,7 +172,13 @@ export default function Kiosk() {
         const data = await api('/attendance/scan', { method: 'POST', body: { studentId: code } });
         setResult(data.attendance);
         setPhase('success');
-        scheduleClear(SUCCESS_MS);
+        if (data.message) {
+          // Show the ID's message first; the result stays up for its usual time afterwards.
+          awaitingClearRef.current = true;
+          setMessages((q) => [...q, { key: `scan-${Date.now()}`, text: data.message }]);
+        } else {
+          scheduleClear(SUCCESS_MS);
+        }
       } catch (err) {
         showError(errorMessage(err));
       } finally {
@@ -164,6 +205,10 @@ export default function Kiosk() {
 
     const onKeyDown = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (modalOpenRef.current) {
+        buffer = '';
+        return;
+      }
 
       const now = Date.now();
       if (now - lastKeyAt > KEY_GAP_MS) buffer = '';
@@ -193,6 +238,46 @@ export default function Kiosk() {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [submitScan]);
+
+  const currentMessage = messages[0] || null;
+  const proceed = useCallback(() => setMessages((q) => q.slice(1)), []);
+
+  useEffect(() => {
+    modalOpenRef.current = Boolean(currentMessage);
+    // When the last pop-up closes, start the normal countdown for the result behind it.
+    if (!currentMessage && awaitingClearRef.current) {
+      awaitingClearRef.current = false;
+      scheduleClear(SUCCESS_MS);
+    }
+  }, [currentMessage, scheduleClear]);
+
+  // Messages sent from the dashboard. The first call only learns the latest
+  // message number, so opening the kiosk never replays old messages.
+  useEffect(() => {
+    let alive = true;
+    let after = null;
+    let timer;
+
+    const poll = async () => {
+      try {
+        const data = await api(after === null ? '/messages/kiosk' : `/messages/kiosk?after=${after}`);
+        if (!alive) return;
+        after = data.latestId;
+        if (data.messages.length) {
+          setMessages((q) => [...q, ...data.messages.map((m) => ({ key: `sent-${m.id}`, text: m.text }))]);
+        }
+      } catch {
+        // Offline or signed out: the status footer and route guard already show that.
+      }
+      if (alive) timer = setTimeout(poll, MESSAGE_POLL_MS);
+    };
+    poll();
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, []);
 
   // Reader status. A keyboard-style reader cannot report its own connection,
   // so "ready" means the server is reachable and this screen can receive scans.
@@ -306,6 +391,8 @@ export default function Kiosk() {
           )}
         </section>
       </main>
+
+      {currentMessage && <KioskMessage key={currentMessage.key} text={currentMessage.text} onProceed={proceed} />}
 
       <footer className="kiosk-foot">
         <span className={`kiosk-dot is-${reader.tone}`} aria-hidden="true" />

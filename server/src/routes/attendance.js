@@ -63,8 +63,16 @@ router.post('/scan', async (req, res, next) => {
       [student.id, action, now, req.user.id]
     );
 
+    // A custom message set for this ID (for example the PCDS admin) is shown
+    // by the kiosk before the result. Repeat taps above do not include it.
+    const rules = await query(
+      'SELECT message FROM message_rules WHERE student_id = ? AND enabled = 1 LIMIT 1',
+      [String(student.member_id).toUpperCase()]
+    );
+
     res.json({
       attendance: { studentId: student.member_id, action, recordedAt: now.toISOString() },
+      message: rules[0] ? rules[0].message : null,
     });
   } catch (err) {
     next(err);

@@ -1,5 +1,6 @@
 import { useAuth } from '../auth/AuthContext.jsx';
 import ManualAttendance from '../components/ManualAttendance.jsx';
+import MessageConfiguration from '../components/MessageConfiguration.jsx';
 
 const ROLE_COPY = {
   admin: 'You have administrator access to the PCDS RFID Kiosk.',
@@ -20,6 +21,7 @@ export default function Dashboard() {
       </header>
 
       {canRecordAttendance && <ManualAttendance />}
+      {canRecordAttendance && <MessageConfiguration />}
     </div>
   );
 }

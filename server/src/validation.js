@@ -108,3 +108,31 @@ export function validateManualAttendance(body = {}) {
 
   return { errors, values: { name, studentId, course, gender } };
 }
+
+export const MESSAGE_MAX = 500;
+const SCANNABLE_ID_RE = /^[A-Za-z0-9_-]{3,32}$/;
+
+// Message text keeps line breaks but drops other control characters.
+export function cleanMessage(value) {
+  return asString(value)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
+}
+
+export function validateMessageText(value) {
+  const message = cleanMessage(value);
+  if (!message) return { error: 'Enter a message.', message };
+  if (message.length > MESSAGE_MAX) return { error: `Messages can be up to ${MESSAGE_MAX} characters.`, message };
+  return { error: null, message };
+}
+
+// IDs are limited to what the kiosk reader can actually scan.
+export function validateRuleId(value) {
+  const studentId = normalizeMemberId(value);
+  if (!studentId) return { error: 'Enter a student ID.', studentId };
+  if (!SCANNABLE_ID_RE.test(studentId)) {
+    return { error: 'ID must be 3 to 32 characters: letters, numbers, hyphens or underscores.', studentId };
+  }
+  return { error: null, studentId };
+}

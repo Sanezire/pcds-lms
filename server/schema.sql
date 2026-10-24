@@ -74,3 +74,29 @@ CREATE TABLE IF NOT EXISTS manual_attendance (
   KEY idx_manual_attendance_student (student_id, time_in),
   CONSTRAINT fk_manual_attendance_user FOREIGN KEY (recorded_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Custom messages shown on the kiosk when a specific student ID is scanned.
+CREATE TABLE IF NOT EXISTS message_rules (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  student_id  VARCHAR(32)     NOT NULL,
+  message     VARCHAR(500)    NOT NULL,
+  enabled     TINYINT(1)      NOT NULL DEFAULT 1,
+  created_by  BIGINT UNSIGNED NULL,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_message_rules_student (student_id),
+  CONSTRAINT fk_message_rules_user FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Messages sent straight to the kiosk from the dashboard. The kiosk picks up
+-- each new row once and shows it.
+CREATE TABLE IF NOT EXISTS kiosk_broadcasts (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  message     VARCHAR(500)    NOT NULL,
+  created_by  BIGINT UNSIGNED NULL,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_kiosk_broadcasts_created (created_at),
+  CONSTRAINT fk_kiosk_broadcasts_user FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
