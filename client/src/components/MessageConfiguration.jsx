@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
+import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
 
 const MAX = 500;
@@ -113,14 +114,12 @@ function SentMessages({ onClose }) {
                 <span className="sent-text">{m.text}</span>
                 <span className="muted sent-time">{sentFormat.format(new Date(m.sentAt))}</span>
               </div>
-              <button
-                type="button"
-                className="btn btn-quiet btn-danger"
+              <IconButton
+                kind="delete"
+                label="Delete message"
                 onClick={() => remove(m)}
                 disabled={busyId === m.id || clearing}
-              >
-                Delete
-              </button>
+              />
             </li>
           ))}
         </ul>
@@ -149,6 +148,7 @@ function SentMessages({ onClose }) {
               onClick={() => setConfirmAll(true)}
               disabled={count === 0}
             >
+              <img className="btn-icon" src="/images/delete_icon.png" alt="" />
               Delete all
             </button>
           </>
@@ -410,12 +410,13 @@ function IdMessages() {
                   />
                   <span>{r.enabled ? 'On' : 'Off'}</span>
                 </label>
-                <button type="button" className="btn btn-quiet" onClick={() => startEdit(r)}>
-                  Edit
-                </button>
-                <button type="button" className="btn btn-quiet btn-danger" onClick={() => remove(r)} disabled={busyId === r.id}>
-                  Delete
-                </button>
+                <IconButton kind="edit" label={`Edit messages for ${r.studentId}`} onClick={() => startEdit(r)} />
+                <IconButton
+                  kind="delete"
+                  label={`Delete messages for ${r.studentId}`}
+                  onClick={() => remove(r)}
+                  disabled={busyId === r.id}
+                />
               </div>
             </li>
           ))}

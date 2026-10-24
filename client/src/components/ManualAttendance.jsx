@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
+import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
 
 const EMPTY = { name: '', studentId: '', course: '', gender: '' };
@@ -62,8 +63,10 @@ function SelectField({ label, error, children, ...props }) {
   );
 }
 
-function NewEntryForm({ onSaved, onClose }) {
-  const [values, setValues] = useState(EMPTY);
+function NewEntryForm({ record, onSaved, onClose }) {
+  const [values, setValues] = useState(
+    record ? { name: record.name, studentId: record.studentId, course: record.course, gender: record.gender } : EMPTY
+  );
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -82,7 +85,9 @@ function NewEntryForm({ onSaved, onClose }) {
 
     setSubmitting(true);
     try {
-      const data = await api('/manual-attendance', { method: 'POST', body: values });
+      const data = record
+        ? await api(`/manual-attendance/${record.id}`, { method: 'PATCH', body: values })
+        : await api('/manual-attendance', { method: 'POST', body: values });
       onSaved(data.record);
     } catch (err) {
       setFormError(err.message);
@@ -93,7 +98,11 @@ function NewEntryForm({ onSaved, onClose }) {
 
   return (
     <form onSubmit={onSubmit} noValidate>
-      <p className="modal-note">For students without an RFID card. Time In is recorded when you submit.</p>
+      <p className="modal-note">
+        {record
+          ? 'Update the student’s details. The recorded times stay the same.'
+          : 'For students without an RFID card. Time In is recorded when you submit.'}
+      </p>
       {formError && (
         <div className="alert alert-error" role="alert">
           {formError}
@@ -136,7 +145,7 @@ function NewEntryForm({ onSaved, onClose }) {
           Cancel
         </button>
         <button type="submit" className="btn btn-primary btn-lg" disabled={submitting}>
-          {submitting ? 'Recording…' : 'Record Time In'}
+          {submitting ? (record ? 'Saving…' : 'Recording…') : record ? 'Save changes' : 'Record Time In'}
         </button>
       </div>
     </form>
@@ -212,7 +221,8 @@ function RecordDetails({ record, onTimedOut, onClose }) {
 export default function ManualAttendance() {
   const [records, setRecords] = useState(null);
   const [loadError, setLoadError] = useState('');
-  const [modal, setModal] = useState(null); // { type: 'new' } | { type: 'record', id }
+  const [modal, setModal] = useState(null); // { type: 'new' } | { type: 'record', id } | { type: 'edit', id }
+  const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -231,6 +241,7 @@ export default function ManualAttendance() {
   useLiveReload(['attendance'], load);
 
   const selected = modal?.type === 'record' ? records?.find((r) => r.id === modal.id) : null;
+  const editing = modal?.type === 'edit' ? records?.find((r) => r.id === modal.id) : null;
   const close = () => setModal(null);
 
   // Reload from the server so the list order and statuses always match the database.
@@ -238,6 +249,22 @@ export default function ManualAttendance() {
     close();
     load();
   };
+
+  async function remove(r) {
+    if (!window.confirm(`Delete the attendance record for ${r.name} (${r.studentId})?`)) return;
+    setBusyId(r.id);
+    try {
+      await api(`/manual-attendance/${r.id}`, { method: 'DELETE' });
+      if (modal?.id === r.id) close();
+      await load();
+    } catch (err) {
+      // Already gone (for example deleted on another screen): just refresh.
+      if (err.status !== 404) setLoadError(err.message);
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <section className="panel" aria-labelledby="manual-h">
@@ -270,7 +297,7 @@ export default function ManualAttendance() {
       {records && records.length > 0 && (
         <ul className="record-list">
           {records.map((r) => (
-            <li key={r.id}>
+            <li key={r.id} className="record-row">
               <button type="button" className="record" onClick={() => setModal({ type: 'record', id: r.id })}>
                 <span className="record-main">
                   <span className="record-name">{r.name}</span>
@@ -286,6 +313,10 @@ export default function ManualAttendance() {
                   {r.timeOut ? 'Timed out' : 'Timed in'}
                 </span>
               </button>
+              <div className="record-actions">
+                <IconButton kind="edit" label={`Edit ${r.name}`} onClick={() => setModal({ type: 'edit', id: r.id })} />
+                <IconButton kind="delete" label={`Delete ${r.name}`} onClick={() => remove(r)} disabled={busyId === r.id} />
+              </div>
             </li>
           ))}
         </ul>
@@ -294,6 +325,11 @@ export default function ManualAttendance() {
       {modal?.type === 'new' && (
         <Modal title="Manual attendance" onClose={close}>
           <NewEntryForm onSaved={saved} onClose={close} />
+        </Modal>
+      )}
+      {editing && (
+        <Modal title="Edit attendance record" onClose={close}>
+          <NewEntryForm record={editing} onSaved={saved} onClose={close} />
         </Modal>
       )}
       {selected && (

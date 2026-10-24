@@ -101,4 +101,58 @@ router.post('/:id/time-out', async (req, res, next) => {
   }
 });
 
+// Edit the student details on an entry. The times are never changed here.
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid record.');
+
+    const { errors, values } = validateManualAttendance(req.body);
+    if (Object.keys(errors).length) {
+      throw httpError(400, 'Check the highlighted fields and try again.', errors);
+    }
+
+    let result;
+    try {
+      result = await query(
+        `UPDATE manual_attendance
+            SET student_id = ?, student_name = ?, course = ?, gender = ?
+          WHERE id = ?`,
+        [values.studentId, values.name, values.course, values.gender, id]
+      );
+    } catch (err) {
+      // Changing the ID of an open entry to one that is already timed in.
+      if (err.code === 'ER_DUP_ENTRY') {
+        throw httpError(409, 'This student is already timed in. Time them out first.', {
+          studentId: 'This student is already timed in.',
+        });
+      }
+      throw err;
+    }
+
+    const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [id]);
+    if (!rows[0]) throw httpError(404, 'Record not found.');
+    publish('attendance');
+
+    res.json({ record: toRecord(rows[0]) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid record.');
+
+    const result = await query(`DELETE FROM manual_attendance WHERE id = ?`, [id]);
+    if (!result.affectedRows) throw httpError(404, 'Record not found.');
+    publish('attendance');
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

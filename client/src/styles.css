@@ -1281,3 +1281,58 @@ a:hover {
   background: var(--danger);
   filter: brightness(0.92);
 }
+
+/* ---------- Edit / Delete icon buttons ---------- */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  flex: none;
+  background: var(--white);
+  border: 1px solid var(--blue-300);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.icon-btn img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--blue-100);
+}
+.icon-btn-delete {
+  border-color: #f0c7c4;
+}
+.icon-btn-delete:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+.icon-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 2px;
+}
+
+/* A record row: the clickable record plus its edit and delete buttons */
+.record-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.record-row .record {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+.record-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
