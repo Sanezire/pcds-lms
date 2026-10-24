@@ -37,3 +37,17 @@ CREATE TABLE IF NOT EXISTS sessions (
   KEY idx_sessions_expires (expires_at),
   CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Library attendance taps. One row per Time In or Time Out.
+CREATE TABLE IF NOT EXISTS attendance (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id        BIGINT UNSIGNED NOT NULL,
+  action         ENUM('in', 'out') NOT NULL,
+  recorded_at    DATETIME        NOT NULL,
+  kiosk_user_id  BIGINT UNSIGNED NULL,
+  PRIMARY KEY (id),
+  KEY idx_attendance_user_time (user_id, recorded_at),
+  KEY idx_attendance_time (recorded_at),
+  CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_attendance_kiosk FOREIGN KEY (kiosk_user_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

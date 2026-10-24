@@ -5,6 +5,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Members from './pages/Members.jsx';
+import Kiosk from './pages/Kiosk.jsx';
 
 export default function App() {
   return (
@@ -12,6 +13,13 @@ export default function App() {
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+      </Route>
+
+      <Route path="/" element={<Navigate to="/kiosk" replace />} />
+
+      {/* Student-facing kiosk screen. Runs under a signed-in staff session, without the admin shell. */}
+      <Route element={<ProtectedRoute roles={['admin', 'librarian']} />}>
+        <Route path="/kiosk" element={<Kiosk />} />
       </Route>
 
       <Route element={<ProtectedRoute />}>

@@ -5,6 +5,10 @@ const num = (value, fallback) => {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
 
+// Minutes ahead of UTC for the school's local time (Philippines = 480).
+// Decides where one attendance day ends and the next begins.
+const utcOffset = Number.parseInt(process.env.ATTENDANCE_UTC_OFFSET_MINUTES ?? '480', 10);
+
 const isProd = process.env.NODE_ENV === 'production';
 
 export const config = {
@@ -22,6 +26,9 @@ export const config = {
   session: {
     cookieName: process.env.COOKIE_NAME || 'pcds_sid',
     ttlHours: num(process.env.SESSION_TTL_HOURS, 8),
+  },
+  attendance: {
+    utcOffsetMinutes: Number.isFinite(utcOffset) ? utcOffset : 480,
   },
   bcryptRounds: num(process.env.BCRYPT_ROUNDS, 12),
   // Shared secret required to create an administrator account at /register.

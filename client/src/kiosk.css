@@ -1,0 +1,324 @@
+/* Student-facing kiosk screen. Everything is scoped under .kiosk so the
+   admin dashboard styles in styles.css are untouched. */
+
+.kiosk {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--blue-100) 0%, var(--blue-50) 60%);
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Header */
+.kiosk-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: clamp(0.75rem, 2vw, 1.25rem) clamp(1rem, 4vw, 3rem);
+  background: rgba(255, 255, 255, 0.75);
+  border-bottom: 2px solid var(--blue-200);
+}
+.kiosk-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+}
+.kiosk-brand img {
+  display: block;
+  object-fit: contain;
+  flex: none;
+}
+.kiosk-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.kiosk-brand-name {
+  font-size: clamp(1.125rem, 2.6vw, 1.75rem);
+  font-weight: 700;
+  color: var(--blue-700);
+  line-height: 1.15;
+}
+.kiosk-brand-sub {
+  font-size: clamp(0.8125rem, 1.6vw, 1.0625rem);
+  color: var(--muted);
+}
+.kiosk-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  text-align: right;
+}
+.kiosk-date {
+  font-size: clamp(0.8125rem, 1.6vw, 1.0625rem);
+  font-weight: 500;
+  color: var(--muted);
+}
+.kiosk-time {
+  font-size: clamp(1.375rem, 3.4vw, 2.25rem);
+  font-weight: 700;
+  color: var(--blue-700);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Main */
+.kiosk-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.5rem, 1.5vw, 0.875rem);
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem) clamp(1rem, 4vw, 2rem);
+  text-align: center;
+}
+.kiosk-logo {
+  width: clamp(96px, 16vw, 150px);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+.kiosk-title {
+  font-size: clamp(2rem, 5.5vw, 3.25rem);
+  font-weight: 700;
+  color: var(--blue-700);
+  letter-spacing: -0.015em;
+}
+.kiosk-instruction {
+  font-size: clamp(1.0625rem, 2.4vw, 1.5rem);
+  color: var(--muted);
+  margin-bottom: clamp(0.5rem, 2vw, 1.25rem);
+}
+
+/* Result card: fixed height so the layout never jumps between states */
+.kiosk-card {
+  width: 100%;
+  min-height: clamp(230px, 34vh, 290px);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  background: var(--white);
+  border: 2px solid var(--blue-200);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(31, 106, 171, 0.1);
+  transition: border-color 0.2s ease;
+}
+.kiosk-card.is-success {
+  border-color: #8fd0ae;
+}
+.kiosk-card.is-error {
+  border-color: #eeb5b1;
+}
+
+.kiosk-state,
+.kiosk-result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.kiosk-state-title {
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  font-weight: 600;
+  color: var(--blue-700);
+}
+.kiosk-state-title.is-error {
+  color: var(--danger);
+}
+.kiosk-state-note {
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
+  color: var(--muted);
+  max-width: 34ch;
+}
+
+.kiosk-badge {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+}
+.kiosk-badge.is-neutral {
+  background: var(--blue-100);
+  color: var(--blue-600);
+}
+.kiosk-badge.is-success {
+  background: var(--success);
+  color: var(--white);
+  width: 48px;
+  height: 48px;
+}
+.kiosk-badge.is-error {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.kiosk-spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 4px solid var(--blue-200);
+  border-top-color: var(--blue-600);
+  animation: kiosk-spin 0.8s linear infinite;
+}
+@keyframes kiosk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Success layout */
+.kiosk-result {
+  gap: clamp(0.625rem, 2vw, 1rem);
+}
+.kiosk-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding-bottom: clamp(0.5rem, 1.5vw, 0.875rem);
+  border-bottom: 1px solid var(--line);
+}
+.kiosk-result-title {
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  font-weight: 700;
+  color: var(--success);
+}
+.kiosk-result-id {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+.kiosk-label {
+  display: block;
+  font-size: clamp(0.875rem, 1.8vw, 1.0625rem);
+  font-weight: 500;
+  color: var(--blue-500);
+}
+.kiosk-id {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 1rem;
+  background: var(--blue-100);
+  border-radius: 12px;
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  font-weight: 700;
+  color: var(--blue-700);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.kiosk-result-meta {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.kiosk-result-meta > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+}
+.kiosk-result-meta > div + div {
+  border-left: 1px solid var(--line);
+}
+.kiosk-value {
+  font-size: clamp(1.25rem, 3.4vw, 1.875rem);
+  font-weight: 700;
+  color: var(--blue-700);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Footer: reader status */
+.kiosk-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: clamp(0.75rem, 2vw, 1.25rem) 1rem;
+  background: rgba(255, 255, 255, 0.75);
+  border-top: 2px solid var(--blue-200);
+}
+.kiosk-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: none;
+}
+.kiosk-dot.is-ok {
+  background: #1f9d62;
+  box-shadow: 0 0 0 4px rgba(31, 157, 98, 0.18);
+}
+.kiosk-dot.is-warn {
+  background: #d99a0b;
+  box-shadow: 0 0 0 4px rgba(217, 154, 11, 0.2);
+}
+.kiosk-dot.is-bad {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(179, 38, 30, 0.18);
+}
+.kiosk-reader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem 0.75rem;
+  font-size: clamp(0.9375rem, 1.9vw, 1.1875rem);
+  color: var(--muted);
+}
+.kiosk-reader strong {
+  font-weight: 700;
+}
+.kiosk-reader strong.is-ok {
+  color: var(--success);
+}
+.kiosk-reader strong.is-warn {
+  color: #8a5d00;
+}
+.kiosk-reader strong.is-bad {
+  color: var(--danger);
+}
+
+/* Small phones / narrow windows */
+@media (max-width: 480px) {
+  .kiosk-brand-sub {
+    display: none;
+  }
+  .kiosk-brand img {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Large touch kiosks */
+@media (min-width: 1200px) and (min-height: 800px) {
+  .kiosk-main {
+    max-width: 820px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kiosk-spinner {
+    animation-duration: 2.4s;
+  }
+  .kiosk-card {
+    transition: none;
+  }
+}
