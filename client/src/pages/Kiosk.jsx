@@ -7,6 +7,7 @@ const LOGO_SRC = '/images/pcds_logo.png';
 const SUCCESS_MS = 5000; // how long a successful result stays on screen
 const ERROR_MS = 4000; // how long an error stays on screen
 const KEY_GAP_MS = 250; // card readers type fast; a longer pause starts a new scan
+const SUBMIT_IDLE_MS = 150; // a scan is sent once typing stops this long, so Enter is optional
 const MIN_ID_LENGTH = 3;
 const MAX_ID_LENGTH = 32;
 const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -147,10 +148,19 @@ export default function Kiosk() {
   );
 
   // RFID reader input. USB readers act like a keyboard: they type the card
-  // value very quickly and finish with Enter. Slow, stray typing is ignored.
+  // value very quickly. The scan is sent when Enter arrives, or when typing
+  // stops for a moment, so readers that do not send Enter work too. Slow,
+  // stray typing is ignored.
   useEffect(() => {
     let buffer = '';
     let lastKeyAt = 0;
+    let idleTimer;
+
+    const flush = () => {
+      const code = buffer.trim();
+      buffer = '';
+      if (code.length >= MIN_ID_LENGTH) submitScan(code);
+    };
 
     const onKeyDown = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -160,6 +170,7 @@ export default function Kiosk() {
       lastKeyAt = now;
 
       if (e.key === 'Enter') {
+        clearTimeout(idleTimer);
         const code = buffer.trim();
         buffer = '';
         if (code) {
@@ -171,11 +182,16 @@ export default function Kiosk() {
       if (e.key.length === 1) {
         e.preventDefault();
         if (buffer.length <= MAX_ID_LENGTH) buffer += e.key;
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(flush, SUBMIT_IDLE_MS);
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      clearTimeout(idleTimer);
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [submitScan]);
 
   // Reader status. A keyboard-style reader cannot report its own connection,
