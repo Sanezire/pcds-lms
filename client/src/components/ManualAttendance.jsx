@@ -173,9 +173,22 @@ function RecordButton({ record: r, onClick }) {
   );
 }
 
+// One entry: the record itself plus its Edit and Delete buttons.
+function RecordRow({ record: r, busy, onOpen, onEdit, onDelete }) {
+  return (
+    <li className="record-row">
+      <RecordButton record={r} onClick={onOpen} />
+      <div className="record-actions">
+        <IconButton kind="edit" label={`Edit ${r.name}`} onClick={onEdit} />
+        <IconButton kind="delete" label={`Delete ${r.name}`} onClick={onDelete} disabled={busy} />
+      </div>
+    </li>
+  );
+}
+
 // Every manual entry, with search and filters. Choosing one does the same as
 // choosing an entry in the panel: it opens that record so staff can Time Out.
-function AllRecords({ records, onSelect, onClose }) {
+function AllRecords({ records, busyId, onSelect, onEdit, onDelete, onClose }) {
   const searchId = useId();
   const courseId = useId();
   const genderId = useId();
@@ -261,9 +274,14 @@ function AllRecords({ records, onSelect, onClose }) {
       ) : (
         <ul className="record-list all-list">
           {filtered.map((r) => (
-            <li key={r.id}>
-              <RecordButton record={r} onClick={() => onSelect(r.id)} />
-            </li>
+            <RecordRow
+              key={r.id}
+              record={r}
+              busy={busyId === r.id}
+              onOpen={() => onSelect(r.id)}
+              onEdit={() => onEdit(r.id)}
+              onDelete={() => onDelete(r)}
+            />
           ))}
         </ul>
       )}
@@ -428,13 +446,14 @@ export default function ManualAttendance() {
         <>
           <ul className="record-list">
             {records.slice(0, PREVIEW_COUNT).map((r) => (
-              <li key={r.id} className="record-row">
-                <RecordButton record={r} onClick={() => setModal({ type: 'record', id: r.id })} />
-                <div className="record-actions">
-                  <IconButton kind="edit" label={`Edit ${r.name}`} onClick={() => setModal({ type: 'edit', id: r.id })} />
-                  <IconButton kind="delete" label={`Delete ${r.name}`} onClick={() => remove(r)} disabled={busyId === r.id} />
-                </div>
-              </li>
+              <RecordRow
+                key={r.id}
+                record={r}
+                busy={busyId === r.id}
+                onOpen={() => setModal({ type: 'record', id: r.id })}
+                onEdit={() => setModal({ type: 'edit', id: r.id })}
+                onDelete={() => remove(r)}
+              />
             ))}
           </ul>
           {records.length > PREVIEW_COUNT && (
@@ -450,7 +469,10 @@ export default function ManualAttendance() {
       {showAll && records && (
         <AllRecords
           records={records}
+          busyId={busyId}
           onSelect={(id) => setModal({ type: 'record', id })}
+          onEdit={(id) => setModal({ type: 'edit', id })}
+          onDelete={remove}
           onClose={() => setShowAll(false)}
         />
       )}
