@@ -74,6 +74,7 @@ function SentMessages({ onClose }) {
     try {
       await api(`/messages/broadcasts/${item.id}`, { method: 'DELETE' });
       setItems((list) => (list ? list.filter((m) => m.id !== item.id) : list));
+      showSuccessToast('Message deleted');
     } catch (err) {
       // Already gone (for example deleted on another screen): just refresh.
       if (err.status !== 404) setError(err.message);
@@ -90,6 +91,7 @@ function SentMessages({ onClose }) {
       await api('/messages/broadcasts', { method: 'DELETE' });
       setItems([]);
       setConfirmAll(false);
+      showSuccessToast('All messages deleted');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -285,6 +287,8 @@ function IdMessages() {
     if (Object.keys(found).length) return;
 
     setSaving(true);
+    const wasEditing = Boolean(editing);
+    const forId = editing ? editing.studentId : studentId.trim();
     try {
       if (editing) {
         await api(`/messages/rules/${editing.id}`, { method: 'PATCH', body: { message, messageOut } });
@@ -293,6 +297,7 @@ function IdMessages() {
       }
       closeForm();
       await load();
+      showSuccessToast(wasEditing ? 'Messages updated' : 'Message added', `ID ${forId}`);
     } catch (err) {
       setFormError(err.message);
       setErrors(err.fields || {});
@@ -324,6 +329,7 @@ function IdMessages() {
       await api(`/messages/rules/${rule.id}`, { method: 'DELETE' });
       if (editing?.id === rule.id) closeForm();
       await load();
+      showSuccessToast('Messages deleted', `ID ${rule.studentId}`);
     } catch (err) {
       setLoadError(err.message);
     } finally {

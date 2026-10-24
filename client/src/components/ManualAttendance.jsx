@@ -5,6 +5,7 @@ import { Field } from './Field.jsx';
 import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
 import { confirmDelete } from '../confirm.js';
+import { showSuccessToast } from '../toast.js';
 
 const EMPTY = { name: '', studentId: '', course: '', gender: '' };
 // Suggested in the Course box. Staff can still type any other course.
@@ -389,9 +390,10 @@ export default function ManualAttendance() {
   const close = () => setModal(null);
 
   // Reload from the server so the list order and statuses always match the database.
-  const saved = () => {
+  const saved = (message) => (record) => {
     close();
     load();
+    showSuccessToast(message, record?.name);
   };
 
   async function remove(r) {
@@ -405,6 +407,7 @@ export default function ManualAttendance() {
       await api(`/manual-attendance/${r.id}`, { method: 'DELETE' });
       if (modal?.id === r.id) close();
       await load();
+      showSuccessToast('Record deleted', r.name);
     } catch (err) {
       // Already gone (for example deleted on another screen): just refresh.
       if (err.status !== 404) setLoadError(err.message);
@@ -478,17 +481,17 @@ export default function ManualAttendance() {
       )}
       {modal?.type === 'new' && (
         <Modal title="Manual Attendance" onClose={close}>
-          <NewEntryForm onSaved={saved} onClose={close} />
+          <NewEntryForm onSaved={saved('Time In recorded')} onClose={close} />
         </Modal>
       )}
       {editing && (
         <Modal title="Edit attendance record" onClose={close}>
-          <NewEntryForm record={editing} onSaved={saved} onClose={close} />
+          <NewEntryForm record={editing} onSaved={saved('Record updated')} onClose={close} />
         </Modal>
       )}
       {selected && (
         <Modal title="Attendance record" onClose={close}>
-          <RecordDetails record={selected} onTimedOut={saved} onClose={close} />
+          <RecordDetails record={selected} onTimedOut={saved('Time Out recorded')} onClose={close} />
         </Modal>
       )}
     </section>

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
 import { Field } from '../components/Field.jsx';
+import { showSuccessToast } from '../toast.js';
 import { ArrowRightIcon, CheckIcon, LockIcon, MailIcon } from '../components/Icons.jsx';
 import { validateLogin } from '../validation.js';
 
@@ -40,6 +41,14 @@ export default function Login() {
   const notice = location.state?.notice;
   const from = location.state?.from;
 
+  // Shown once as a toast, then cleared so a refresh does not show it again.
+  useEffect(() => {
+    if (!notice) return;
+    showSuccessToast(notice);
+    navigate(location.pathname, { replace: true, state: from ? { from } : null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notice]);
+
   const set = (name) => (e) => {
     setValues((v) => ({ ...v, [name]: e.target.value }));
     if (errors[name]) setErrors((er) => ({ ...er, [name]: undefined }));
@@ -74,11 +83,6 @@ export default function Login() {
       title="Welcome Back"
       subtitle="Sign in to access the PCDS RFID Kiosk system."
     >
-      {notice && (
-        <div className="alert alert-success" role="status">
-          {notice}
-        </div>
-      )}
       {formError && (
         <div className="alert alert-error" role="alert">
           {formError}
