@@ -4,6 +4,15 @@ import { Field } from './Field.jsx';
 import Modal from './Modal.jsx';
 
 const EMPTY = { name: '', studentId: '', course: '', gender: '' };
+// Suggested in the Course box. Staff can still type any other course.
+const COURSES = [
+  'BS Nursing',
+  'BS Hospitality Management',
+  'BS Radiologic Technology',
+  'BS Criminology',
+  'BS Information Technology',
+  'Diploma in Hotel and Restaurant Technology',
+];
 const GENDERS = [
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
@@ -98,7 +107,21 @@ function NewEntryForm({ onSaved, onClose }) {
         onChange={set('studentId')}
         error={errors.studentId}
       />
-      <Field label="Course" name="course" autoComplete="off" value={values.course} onChange={set('course')} error={errors.course} />
+      <Field
+        label="Course"
+        name="course"
+        list="course-options"
+        autoComplete="off"
+        placeholder="Choose from the list or type a course"
+        value={values.course}
+        onChange={set('course')}
+        error={errors.course}
+      />
+      <datalist id="course-options">
+        {COURSES.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
       <SelectField label="Gender" name="gender" value={values.gender} onChange={set('gender')} error={errors.gender}>
         <option value="">Select gender</option>
         {GENDERS.map((g) => (
