@@ -124,6 +124,7 @@ router.get('/attendance', async (req, res, next) => {
     const total = Number(counts[0].total);
     res.set('Cache-Control', 'no-store');
     res.json({
+      serverTime: new Date().toISOString(),
       records: rows.map((r) => ({
         key: `${r.attendance_type}-${r.source_id}`,
         type: r.attendance_type,

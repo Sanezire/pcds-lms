@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
 
 const MAX = 500;
@@ -115,6 +116,8 @@ function IdMessages() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useLiveReload(['messages'], load);
 
   function resetForm() {
     setEditing(null);

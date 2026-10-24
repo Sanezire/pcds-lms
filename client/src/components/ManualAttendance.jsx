@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { api } from '../api.js';
+import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
 import Modal from './Modal.jsx';
 
@@ -226,6 +227,8 @@ export default function ManualAttendance() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useLiveReload(['attendance'], load);
 
   const selected = modal?.type === 'record' ? records?.find((r) => r.id === modal.id) : null;
   const close = () => setModal(null);

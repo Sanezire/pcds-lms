@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { config, ROLES } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
+import { publish } from '../events.js';
 
 const router = Router();
 
@@ -62,6 +63,7 @@ router.post('/scan', async (req, res, next) => {
       `INSERT INTO attendance (user_id, action, recorded_at, kiosk_user_id) VALUES (?, ?, ?, ?)`,
       [student.id, action, now, req.user.id]
     );
+    publish('attendance');
 
     // A custom message set for this ID (for example the PCDS admin) is shown
     // by the kiosk before the result: the Time In message on Time In, the

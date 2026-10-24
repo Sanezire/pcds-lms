@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { useLiveReload, useNow } from '../live.js';
 
 const EMPTY = {
   course: '',
@@ -77,6 +78,9 @@ export default function Statistics() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const latestRequest = useRef(0);
+  const silentRef = useRef(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [serverOffset, setServerOffset] = useState(0);
 
   const formError = checkDuration(filters);
 
@@ -87,12 +91,16 @@ export default function Statistics() {
 
     const timer = setTimeout(async () => {
       const requestId = ++latestRequest.current;
-      setLoading(true);
+      // Live refreshes swap the data in quietly; only filter changes show loading.
+      const silent = silentRef.current;
+      silentRef.current = false;
+      if (!silent) setLoading(true);
       try {
         const qs = buildParams(filters);
         const result = await api(`/statistics/attendance${qs ? `?${qs}` : ''}`);
         if (requestId !== latestRequest.current) return;
         setData(result);
+        if (result.serverTime) setServerOffset(new Date(result.serverTime).getTime() - Date.now());
         setError('');
       } catch (err) {
         if (requestId !== latestRequest.current) return;
@@ -103,7 +111,18 @@ export default function Statistics() {
     }, TYPING_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [filters, formError]);
+  }, [filters, formError, refreshKey]);
+
+  // New taps, manual entries and time-outs arrive here without a page refresh.
+  useLiveReload(['attendance'], () => {
+    silentRef.current = true;
+    setRefreshKey((k) => k + 1);
+  });
+
+  // Visits that are still open keep counting up on their own between updates.
+  const now = useNow(10000, serverOffset);
+  const minutesFor = (r) =>
+    r.active ? Math.max(Math.floor((now - new Date(r.timeIn).getTime()) / 60000), 0) : r.durationMinutes;
 
   const set = (name) => (e) => setFilters((f) => ({ ...f, [name]: e.target.value }));
   const onReset = () => setFilters(EMPTY);
@@ -236,7 +255,7 @@ export default function Statistics() {
                     <td>{formatTime(r.timeIn)}</td>
                     <td>{r.timeOut ? formatTime(r.timeOut) : <span className="status status-in">Still in</span>}</td>
                     <td>
-                      {formatDuration(r.durationMinutes)}
+                      {formatDuration(minutesFor(r))}
                       {r.active && <span className="muted"> so far</span>}
                     </td>
                     <td>

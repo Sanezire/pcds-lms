@@ -12,6 +12,7 @@ import attendanceRoutes from './routes/attendance.js';
 import manualAttendanceRoutes from './routes/manualAttendance.js';
 import statisticsRoutes from './routes/statistics.js';
 import messageRoutes from './routes/messages.js';
+import eventRoutes, { closeAllClients } from './events.js';
 
 const app = express();
 
@@ -31,6 +32,10 @@ app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+// Live-update stream: one long-lived connection per open screen, so it sits
+// outside the per-request rate limiter.
+app.use('/api/events', eventRoutes);
 
 app.use('/api', apiLimiter, requireCustomHeader);
 app.use('/api/auth', authRoutes);
@@ -67,6 +72,7 @@ const cleanup = setInterval(() => {
 cleanup.unref();
 
 const shutdown = () => {
+  closeAllClients();
   server.close(() => pool.end().finally(() => process.exit(0)));
 };
 process.on('SIGINT', shutdown);

@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { ROLES } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { validateManualAttendance } from '../validation.js';
+import { publish } from '../events.js';
 
 const router = Router();
 
@@ -69,6 +70,7 @@ router.post('/', async (req, res, next) => {
       throw err;
     }
 
+    publish('attendance');
     const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [result.insertId]);
     res.status(201).json({ record: toRecord(rows[0]) });
   } catch (err) {
@@ -91,6 +93,7 @@ router.post('/:id/time-out', async (req, res, next) => {
     const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [id]);
     if (!rows[0]) throw httpError(404, 'Record not found.');
     if (!result.affectedRows) throw httpError(409, 'This student was already timed out.');
+    publish('attendance');
 
     res.json({ record: toRecord(rows[0]) });
   } catch (err) {

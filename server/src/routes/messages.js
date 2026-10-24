@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { ROLES } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
+import { publish } from '../events.js';
 import { validateMessageText, validateOptionalMessage, validateRuleId } from '../validation.js';
 
 const router = Router();
@@ -61,6 +62,7 @@ router.post('/rules', async (req, res, next) => {
         [id.studentId, messageIn.message, messageOut.message, req.user.id]
       );
       const rows = await query(`SELECT ${RULE_COLUMNS} FROM message_rules WHERE id = ?`, [result.insertId]);
+      publish('messages');
       res.status(201).json({ rule: toRule(rows[0]) });
     } catch (err) {
       if (err.code === 'ER_DUP_ENTRY') {
@@ -110,6 +112,7 @@ router.patch('/rules/:id', async (req, res, next) => {
 
     await query(`UPDATE message_rules SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
     const rows = await query(`SELECT ${RULE_COLUMNS} FROM message_rules WHERE id = ?`, [id]);
+    publish('messages');
     res.json({ rule: toRule(rows[0]) });
   } catch (err) {
     next(err);
@@ -120,6 +123,7 @@ router.delete('/rules/:id', async (req, res, next) => {
   try {
     const result = await query('DELETE FROM message_rules WHERE id = ?', [parseId(req.params.id)]);
     if (!result.affectedRows) throw httpError(404, 'Message not found.');
+    publish('messages');
     res.json({ message: 'Deleted.' });
   } catch (err) {
     next(err);
