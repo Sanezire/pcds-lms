@@ -1027,3 +1027,7 @@ a:hover {
 .table-panel .empty {
   margin: 0 24px 24px;
 }
+.table-panel[aria-busy='true'] .table-scroll {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}

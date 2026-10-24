@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
 const EMPTY = {
@@ -67,49 +67,50 @@ function NumberBox({ label, value, onChange, max }) {
   );
 }
 
+// Typing in the hour and minute boxes waits this long after the last keystroke
+// before asking the server, so each digit does not trigger its own request.
+const TYPING_DELAY_MS = 300;
+
 export default function Statistics() {
-  const [draft, setDraft] = useState(EMPTY);
-  const [applied, setApplied] = useState(EMPTY);
-  const [formError, setFormError] = useState('');
+  const [filters, setFilters] = useState(EMPTY);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const latestRequest = useRef(0);
 
-  const load = useCallback(async (filters) => {
-    setLoading(true);
-    try {
-      const qs = buildParams(filters);
-      const result = await api(`/statistics/attendance${qs ? `?${qs}` : ''}`);
-      setData(result);
-      setError('');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const formError = checkDuration(filters);
 
+  // Every filter change reloads the logs straight away. Invalid durations are
+  // not sent, and a slow older response can never overwrite a newer one.
   useEffect(() => {
-    load(applied);
-  }, [applied, load]);
+    if (formError) return undefined;
 
-  const set = (name) => (e) => setDraft((d) => ({ ...d, [name]: e.target.value }));
+    const timer = setTimeout(async () => {
+      const requestId = ++latestRequest.current;
+      setLoading(true);
+      try {
+        const qs = buildParams(filters);
+        const result = await api(`/statistics/attendance${qs ? `?${qs}` : ''}`);
+        if (requestId !== latestRequest.current) return;
+        setData(result);
+        setError('');
+      } catch (err) {
+        if (requestId !== latestRequest.current) return;
+        setError(err.message);
+      } finally {
+        if (requestId === latestRequest.current) setLoading(false);
+      }
+    }, TYPING_DELAY_MS);
 
-  function onApply(e) {
-    e.preventDefault();
-    const problem = checkDuration(draft);
-    setFormError(problem);
-    if (!problem) setApplied(draft);
-  }
+    return () => clearTimeout(timer);
+  }, [filters, formError]);
 
-  function onReset() {
-    setDraft(EMPTY);
-    setFormError('');
-    setApplied(EMPTY);
-  }
+  const set = (name) => (e) => setFilters((f) => ({ ...f, [name]: e.target.value }));
+  const onReset = () => setFilters(EMPTY);
+  const isFiltered = Object.keys(EMPTY).some((k) => filters[k] !== '');
 
   const records = data?.records || [];
-  const hidesRfid = Boolean(applied.course || applied.gender);
+  const hidesRfid = Boolean(filters.course || filters.gender);
 
   return (
     <div className="stats">
@@ -118,11 +119,11 @@ export default function Statistics() {
         <p className="lead">Attendance logs from the RFID kiosk and manual entries.</p>
       </header>
 
-      <form className="panel filters" onSubmit={onApply} noValidate>
+      <form className="panel filters" onSubmit={(e) => e.preventDefault()} noValidate>
         <div className="filter-grid">
           <div className="filter">
             <label htmlFor="f-course">Course</label>
-            <select id="f-course" className="field-select" value={draft.course} onChange={set('course')}>
+            <select id="f-course" className="field-select" value={filters.course} onChange={set('course')}>
               <option value="">All courses</option>
               {(data?.options.courses || []).map((c) => (
                 <option key={c} value={c}>
@@ -133,7 +134,7 @@ export default function Statistics() {
           </div>
           <div className="filter">
             <label htmlFor="f-gender">Gender</label>
-            <select id="f-gender" className="field-select" value={draft.gender} onChange={set('gender')}>
+            <select id="f-gender" className="field-select" value={filters.gender} onChange={set('gender')}>
               <option value="">All genders</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
@@ -142,7 +143,7 @@ export default function Statistics() {
           </div>
           <div className="filter">
             <label htmlFor="f-type">Type</label>
-            <select id="f-type" className="field-select" value={draft.type} onChange={set('type')}>
+            <select id="f-type" className="field-select" value={filters.type} onChange={set('type')}>
               <option value="">RFID and manual</option>
               <option value="rfid">RFID</option>
               <option value="manual">Manual</option>
@@ -150,7 +151,7 @@ export default function Statistics() {
           </div>
           <div className="filter">
             <label htmlFor="f-status">Status</label>
-            <select id="f-status" className="field-select" value={draft.status} onChange={set('status')}>
+            <select id="f-status" className="field-select" value={filters.status} onChange={set('status')}>
               <option value="">All</option>
               <option value="out">Timed out</option>
               <option value="in">Still in</option>
@@ -162,11 +163,11 @@ export default function Statistics() {
           <legend>Time spent</legend>
           <div className="duration-row">
             <span className="duration-label">From</span>
-            <NumberBox label="Minimum hours" value={draft.minH} onChange={set('minH')} max="9999" />
-            <NumberBox label="Minimum minutes" value={draft.minM} onChange={set('minM')} max="59999" />
+            <NumberBox label="Minimum hours" value={filters.minH} onChange={set('minH')} max="9999" />
+            <NumberBox label="Minimum minutes" value={filters.minM} onChange={set('minM')} max="59999" />
             <span className="duration-label">to</span>
-            <NumberBox label="Maximum hours" value={draft.maxH} onChange={set('maxH')} max="9999" />
-            <NumberBox label="Maximum minutes" value={draft.maxM} onChange={set('maxM')} max="59999" />
+            <NumberBox label="Maximum hours" value={filters.maxH} onChange={set('maxH')} max="9999" />
+            <NumberBox label="Maximum minutes" value={filters.maxM} onChange={set('maxM')} max="59999" />
           </div>
           <p className="hint">Leave a side empty for no limit. Students still in are counted from Time In until now.</p>
         </fieldset>
@@ -178,11 +179,8 @@ export default function Statistics() {
         )}
 
         <div className="filter-actions">
-          <button type="button" className="btn btn-quiet btn-lg" onClick={onReset}>
-            Reset
-          </button>
-          <button type="submit" className="btn btn-primary btn-lg">
-            Apply filters
+          <button type="button" className="btn btn-quiet btn-lg" onClick={onReset} disabled={!isFiltered}>
+            Reset filters
           </button>
         </div>
       </form>
