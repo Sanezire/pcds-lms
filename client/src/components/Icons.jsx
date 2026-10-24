@@ -58,3 +58,9 @@ export const PlusIcon = (props) => (
     <path d="M12 5v14M5 12h14" />
   </svg>
 );
+
+export const DownloadIcon = (props) => (
+  <svg {...base} {...props}>
+    <path d="M12 4v11M7.5 11 12 15.5 16.5 11M5 19.5h14" />
+  </svg>
+);

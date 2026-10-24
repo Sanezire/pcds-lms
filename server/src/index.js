@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import attendanceRoutes from './routes/attendance.js';
 import manualAttendanceRoutes from './routes/manualAttendance.js';
 import statisticsRoutes from './routes/statistics.js';
+import exportRoutes from './routes/export.js';
 import messageRoutes from './routes/messages.js';
 import eventRoutes, { closeAllClients } from './events.js';
 
@@ -42,6 +43,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/manual-attendance', manualAttendanceRoutes);
 app.use('/api/statistics', statisticsRoutes);
+app.use('/api/export', exportRoutes);
 app.use('/api/messages', messageRoutes);
 
 app.use('/api', (req, res) => {

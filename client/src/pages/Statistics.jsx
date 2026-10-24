@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload, useNow } from '../live.js';
+import { useAuth } from '../auth/AuthContext.jsx';
+import ExportPanel from '../components/ExportPanel.jsx';
 
 const EMPTY = {
   course: '',
@@ -73,6 +75,7 @@ function NumberBox({ label, value, onChange, max }) {
 const TYPING_DELAY_MS = 300;
 
 export default function Statistics() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState(EMPTY);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -137,6 +140,8 @@ export default function Statistics() {
         <h1>Statistics</h1>
         <p className="lead">Attendance logs from the RFID kiosk and manual entries.</p>
       </header>
+
+      {user.role === 'admin' && <ExportPanel />}
 
       <form className="panel filters" onSubmit={(e) => e.preventDefault()} noValidate>
         <div className="filter-grid">

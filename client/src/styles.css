@@ -1467,3 +1467,40 @@ a:hover {
 .pcds-swal-toast-bar.swal2-timer-progress-bar {
   background: var(--blue-300);
 }
+
+/* ---------- Export attendance (Statistics) ---------- */
+.export-panel {
+  display: grid;
+  gap: 18px;
+}
+.export-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+.export-controls .filter {
+  flex: 0 1 220px;
+  min-width: 170px;
+}
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
+}
+.export-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+@media (max-width: 600px) {
+  .export-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+  .export-actions .btn {
+    flex: 1;
+  }
+}

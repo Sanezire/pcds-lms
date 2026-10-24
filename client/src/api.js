@@ -42,3 +42,30 @@ export async function api(path, { method = 'GET', body } = {}) {
   }
   return data;
 }
+
+// Fetches a file (CSV, PDF) with the session cookie and returns it as a Blob.
+export async function download(path) {
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      credentials: 'include',
+      headers: { 'X-Requested-With': 'pcds-lms' },
+    });
+  } catch {
+    throw new ApiError('Cannot reach the server. Check your connection and try again.', 0);
+  }
+
+  if (!res.ok) {
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      /* empty or non-JSON body */
+    }
+    if (res.status === 401) onUnauthorized();
+    throw new ApiError(data?.error?.message || 'Something went wrong. Try again.', res.status);
+  }
+
+  const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+  return { blob: await res.blob(), filename: match ? match[1] : 'attendance-export' };
+}
