@@ -1391,3 +1391,35 @@ a:hover {
   outline-offset: 2px;
   box-shadow: none;
 }
+
+/* ---------- View all manual attendance ---------- */
+.view-all {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+.modal.modal-wide {
+  max-width: 820px;
+}
+.all-filters {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 1fr;
+  gap: 0 14px;
+}
+.all-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  margin-bottom: 10px;
+}
+.all-list {
+  max-height: min(420px, 45vh);
+  padding-right: 4px;
+}
+@media (max-width: 700px) {
+  .all-filters {
+    grid-template-columns: 1fr;
+  }
+}

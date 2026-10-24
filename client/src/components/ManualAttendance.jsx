@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
@@ -21,6 +21,8 @@ const GENDERS = [
   { value: 'female', label: 'Female' },
   { value: 'other', label: 'Other' },
 ];
+
+const PREVIEW_COUNT = 4;
 
 const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 const formatTime = (iso) => (iso ? fmt.format(new Date(iso)) : '');
@@ -153,6 +155,128 @@ function NewEntryForm({ record, onSaved, onClose }) {
   );
 }
 
+function RecordButton({ record: r, onClick }) {
+  return (
+    <button type="button" className="record" onClick={onClick}>
+      <span className="record-main">
+        <span className="record-name">{r.name}</span>
+        <span className="record-sub">
+          {r.studentId} · {r.course}
+        </span>
+      </span>
+      <span className="record-times">
+        <span>In {formatTime(r.timeIn)}</span>
+        {r.timeOut && <span>Out {formatTime(r.timeOut)}</span>}
+      </span>
+      <span className={`status ${r.timeOut ? 'status-out' : 'status-in'}`}>{r.timeOut ? 'Timed out' : 'Timed in'}</span>
+    </button>
+  );
+}
+
+// Every manual entry, with search and filters. Choosing one does the same as
+// choosing an entry in the panel: it opens that record so staff can Time Out.
+function AllRecords({ records, onSelect, onClose }) {
+  const searchId = useId();
+  const courseId = useId();
+  const genderId = useId();
+  const [search, setSearch] = useState('');
+  const [course, setCourse] = useState('');
+  const [gender, setGender] = useState('');
+
+  const courses = useMemo(() => [...new Set(records.map((r) => r.course))].sort((a, b) => a.localeCompare(b)), [records]);
+
+  const term = search.trim().toLowerCase();
+  const filtered = records.filter(
+    (r) =>
+      (!course || r.course === course) &&
+      (!gender || r.gender === gender) &&
+      (!term || r.name.toLowerCase().includes(term) || r.studentId.toLowerCase().includes(term))
+  );
+  const filtering = Boolean(term || course || gender);
+
+  function clear() {
+    setSearch('');
+    setCourse('');
+    setGender('');
+  }
+
+  return (
+    <Modal title="All manual attendance" className="modal-wide" onClose={onClose}>
+      <p className="modal-note">Select a student to view their record or record a Time Out.</p>
+      <div className="all-filters">
+        <div className="field all-search">
+          <label htmlFor={searchId}>Search</label>
+          <div className="input-wrap">
+            <input
+              id={searchId}
+              type="search"
+              autoComplete="off"
+              placeholder="Name or student ID"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor={courseId}>Course</label>
+          <div className="input-wrap">
+            <select id={courseId} className="field-select" value={course} onChange={(e) => setCourse(e.target.value)}>
+              <option value="">All courses</option>
+              {courses.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor={genderId}>Gender</label>
+          <div className="input-wrap">
+            <select id={genderId} className="field-select" value={gender} onChange={(e) => setGender(e.target.value)}>
+              <option value="">All genders</option>
+              {GENDERS.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="all-summary" role="status">
+        <span className="muted">
+          Showing {filtered.length} of {records.length}
+        </span>
+        {filtering && (
+          <button type="button" className="btn btn-quiet" onClick={clear}>
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="empty">No students match your search.</p>
+      ) : (
+        <ul className="record-list all-list">
+          {filtered.map((r) => (
+            <li key={r.id}>
+              <RecordButton record={r} onClick={() => onSelect(r.id)} />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="modal-actions">
+        <button type="button" className="btn btn-quiet btn-lg" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function RecordDetails({ record, onTimedOut, onClose }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -223,6 +347,7 @@ export default function ManualAttendance() {
   const [records, setRecords] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [modal, setModal] = useState(null); // { type: 'new' } | { type: 'record', id } | { type: 'edit', id }
+  const [showAll, setShowAll] = useState(false);
   const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
@@ -300,33 +425,35 @@ export default function ManualAttendance() {
       )}
 
       {records && records.length > 0 && (
-        <ul className="record-list">
-          {records.map((r) => (
-            <li key={r.id} className="record-row">
-              <button type="button" className="record" onClick={() => setModal({ type: 'record', id: r.id })}>
-                <span className="record-main">
-                  <span className="record-name">{r.name}</span>
-                  <span className="record-sub">
-                    {r.studentId} · {r.course}
-                  </span>
-                </span>
-                <span className="record-times">
-                  <span>In {formatTime(r.timeIn)}</span>
-                  {r.timeOut && <span>Out {formatTime(r.timeOut)}</span>}
-                </span>
-                <span className={`status ${r.timeOut ? 'status-out' : 'status-in'}`}>
-                  {r.timeOut ? 'Timed out' : 'Timed in'}
-                </span>
+        <>
+          <ul className="record-list">
+            {records.slice(0, PREVIEW_COUNT).map((r) => (
+              <li key={r.id} className="record-row">
+                <RecordButton record={r} onClick={() => setModal({ type: 'record', id: r.id })} />
+                <div className="record-actions">
+                  <IconButton kind="edit" label={`Edit ${r.name}`} onClick={() => setModal({ type: 'edit', id: r.id })} />
+                  <IconButton kind="delete" label={`Delete ${r.name}`} onClick={() => remove(r)} disabled={busyId === r.id} />
+                </div>
+              </li>
+            ))}
+          </ul>
+          {records.length > PREVIEW_COUNT && (
+            <div className="view-all">
+              <button type="button" className="btn btn-quiet btn-lg" onClick={() => setShowAll(true)}>
+                View all {records.length} students
               </button>
-              <div className="record-actions">
-                <IconButton kind="edit" label={`Edit ${r.name}`} onClick={() => setModal({ type: 'edit', id: r.id })} />
-                <IconButton kind="delete" label={`Delete ${r.name}`} onClick={() => remove(r)} disabled={busyId === r.id} />
-              </div>
-            </li>
-          ))}
-        </ul>
+            </div>
+          )}
+        </>
       )}
 
+      {showAll && records && (
+        <AllRecords
+          records={records}
+          onSelect={(id) => setModal({ type: 'record', id })}
+          onClose={() => setShowAll(false)}
+        />
+      )}
       {modal?.type === 'new' && (
         <Modal title="Manual Attendance" onClose={close}>
           <NewEntryForm onSaved={saved} onClose={close} />
