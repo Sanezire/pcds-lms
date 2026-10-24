@@ -20,28 +20,6 @@ export default function Dashboard() {
       </header>
 
       {canRecordAttendance && <ManualAttendance />}
-
-      <section className="panel" aria-labelledby="account-h">
-        <h2 id="account-h">Your account</h2>
-        <dl className="details">
-          <div>
-            <dt>Full name</dt>
-            <dd>{user.fullName}</dd>
-          </div>
-          <div>
-            <dt>Email</dt>
-            <dd>{user.email}</dd>
-          </div>
-          <div>
-            <dt>ID</dt>
-            <dd>{user.memberId}</dd>
-          </div>
-          <div>
-            <dt>Role</dt>
-            <dd className="capitalize">{user.role}</dd>
-          </div>
-        </dl>
-      </section>
     </div>
   );
 }
