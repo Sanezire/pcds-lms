@@ -1131,6 +1131,19 @@ a:hover {
   justify-content: flex-end;
   gap: 12px;
 }
+.msg-keep {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.msg-keep input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--blue-600);
+}
 .status-text {
   margin-right: auto;
   color: var(--success);

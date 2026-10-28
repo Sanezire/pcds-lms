@@ -21,6 +21,33 @@ const toRule = (r) => ({
 const RULE_COLUMNS = 'id, student_id, message, message_out, enabled';
 const NEED_ONE = 'Enter a Time In message, a Time Out message, or both.';
 
+// The pinned-message table is created on first use, so existing databases work
+// without re-running the setup script.
+let pinnedTableReady = null;
+const ensurePinnedTable = () => {
+  if (!pinnedTableReady) {
+    pinnedTableReady = query(
+      `CREATE TABLE IF NOT EXISTS kiosk_pinned (
+         id          TINYINT UNSIGNED NOT NULL,
+         message     VARCHAR(500)     NOT NULL,
+         created_by  BIGINT UNSIGNED  NULL,
+         updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+         PRIMARY KEY (id)
+       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    ).catch((err) => {
+      pinnedTableReady = null;
+      throw err;
+    });
+  }
+  return pinnedTableReady;
+};
+
+const readPinned = async () => {
+  await ensurePinnedTable();
+  const rows = await query('SELECT message FROM kiosk_pinned WHERE id = 1');
+  return rows.length ? rows[0].message : null;
+};
+
 const parseId = (value) => {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid message.');
@@ -194,6 +221,47 @@ router.delete('/broadcasts/:id', async (req, res, next) => {
   }
 });
 
+// ---- Pinned message: stays on the kiosk until staff switch it off ----
+
+router.get('/pinned', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ pinned: await readPinned() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Pins the message, or replaces the text of the one already pinned.
+router.put('/pinned', async (req, res, next) => {
+  try {
+    const text = validateMessageText(req.body?.message);
+    if (text.error) throw httpError(400, text.error, { message: text.error });
+
+    await ensurePinnedTable();
+    await query(
+      `INSERT INTO kiosk_pinned (id, message, created_by) VALUES (1, ?, ?)
+       ON DUPLICATE KEY UPDATE message = VALUES(message), created_by = VALUES(created_by)`,
+      [text.message, req.user.id]
+    );
+    publish('messages');
+    res.json({ pinned: text.message });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/pinned', async (req, res, next) => {
+  try {
+    await ensurePinnedTable();
+    await query('DELETE FROM kiosk_pinned WHERE id = 1');
+    publish('messages');
+    res.json({ pinned: null });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // The kiosk screen polls this. The first call (no "after") only learns the
 // latest message number, so a freshly opened kiosk never replays old messages.
 router.get('/kiosk', async (req, res, next) => {
@@ -202,7 +270,7 @@ router.get('/kiosk', async (req, res, next) => {
 
     if (req.query.after === undefined) {
       const rows = await query('SELECT COALESCE(MAX(id), 0) AS latest FROM kiosk_broadcasts');
-      return res.json({ messages: [], latestId: Number(rows[0].latest) });
+      return res.json({ messages: [], latestId: Number(rows[0].latest), pinned: await readPinned() });
     }
 
     if (typeof req.query.after !== 'string' || !/^\d{1,18}$/.test(req.query.after)) {
@@ -216,6 +284,7 @@ router.get('/kiosk', async (req, res, next) => {
     res.json({
       messages: rows.map((r) => ({ id: r.id, text: r.message })),
       latestId: rows.length ? rows[rows.length - 1].id : after,
+      pinned: await readPinned(),
     });
   } catch (err) {
     next(err);

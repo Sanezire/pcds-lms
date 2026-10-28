@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api.js';
+import { useLiveReload } from '../live.js';
 import '../kiosk.css';
 
 const LOGO_SRC = '/images/pcds_logo.png';
@@ -101,6 +102,21 @@ function KioskMessage({ text, onProceed }) {
   );
 }
 
+// Message kept on screen by staff. No Proceed button and no countdown: it
+// stays until staff switch it off on the dashboard, and edits show up as typed.
+function KioskPinnedMessage({ text }) {
+  return (
+    <div className="kiosk-overlay">
+      <div className="kiosk-message" role="dialog" aria-modal="true" aria-labelledby="kiosk-pinned-title">
+        <h2 id="kiosk-pinned-title" className="kiosk-message-title">
+          Message
+        </h2>
+        <p className="kiosk-message-text">{text}</p>
+      </div>
+    </div>
+  );
+}
+
 // Own component so the once-a-second tick does not re-render the whole screen.
 const LiveClock = memo(function LiveClock() {
   const [now, setNow] = useState(() => new Date());
@@ -124,6 +140,7 @@ export default function Kiosk() {
   const [focused, setFocused] = useState(() => document.hasFocus());
 
   const [messages, setMessages] = useState([]); // pop-ups waiting to be shown, first one is on screen
+  const [pinned, setPinned] = useState(null); // text of the message kept on screen, or null
 
   const busyRef = useRef(false);
   const clearTimer = useRef(null);
@@ -243,13 +260,26 @@ export default function Kiosk() {
   const proceed = useCallback(() => setMessages((q) => q.slice(1)), []);
 
   useEffect(() => {
-    modalOpenRef.current = Boolean(currentMessage);
+    // A kept message hides everything else, so taps are ignored while it is up.
+    modalOpenRef.current = Boolean(currentMessage || pinned !== null);
     // When the last pop-up closes, start the normal countdown for the result behind it.
-    if (!currentMessage && awaitingClearRef.current) {
+    if (!currentMessage && pinned === null && awaitingClearRef.current) {
       awaitingClearRef.current = false;
       scheduleClear(SUCCESS_MS);
     }
-  }, [currentMessage, scheduleClear]);
+  }, [currentMessage, pinned, scheduleClear]);
+
+  // The kept message changes the moment staff edit or switch it off. The
+  // 3-second poll below is the backup if the live connection drops.
+  const loadPinned = useCallback(async () => {
+    try {
+      const data = await api('/messages/pinned');
+      setPinned(data.pinned);
+    } catch {
+      /* offline or signed out: the footer and route guard already show that */
+    }
+  }, []);
+  useLiveReload(['messages'], loadPinned);
 
   // Messages sent from the dashboard. The first call only learns the latest
   // message number, so opening the kiosk never replays old messages.
@@ -263,6 +293,7 @@ export default function Kiosk() {
         const data = await api(after === null ? '/messages/kiosk' : `/messages/kiosk?after=${after}`);
         if (!alive) return;
         after = data.latestId;
+        if (data.pinned !== undefined) setPinned(data.pinned);
         if (data.messages.length) {
           setMessages((q) => [...q, ...data.messages.map((m) => ({ key: `sent-${m.id}`, text: m.text }))]);
         }
@@ -392,7 +423,11 @@ export default function Kiosk() {
         </section>
       </main>
 
-      {currentMessage && <KioskMessage key={currentMessage.key} text={currentMessage.text} onProceed={proceed} />}
+      {pinned !== null ? (
+        <KioskPinnedMessage text={pinned} />
+      ) : (
+        currentMessage && <KioskMessage key={currentMessage.key} text={currentMessage.text} onProceed={proceed} />
+      )}
 
       <footer className="kiosk-foot">
         <span className={`kiosk-dot is-${reader.tone}`} aria-hidden="true" />
