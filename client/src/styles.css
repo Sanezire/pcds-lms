@@ -1203,6 +1203,62 @@ a:hover {
     margin: 0 16px 12px;
   }
 }
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+}
+.pager-info {
+  margin: 0;
+}
+.pager-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.pager-size .field-select {
+  width: auto;
+  min-height: 38px;
+  padding: 6px 10px;
+}
+.pager-pages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pager .btn-quiet:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.pager-num {
+  min-width: 38px;
+  padding: 6px 10px;
+}
+.pager-num.is-current {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+  color: var(--white);
+}
+.pager-num.is-current:hover {
+  background: var(--blue-600);
+}
+.pager-gap {
+  padding: 0 4px;
+  color: var(--muted);
+}
 .table-panel {
   padding: 0;
   overflow: hidden;

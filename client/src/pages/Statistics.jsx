@@ -53,6 +53,73 @@ function checkDuration(f) {
   return '';
 }
 
+const PAGE_SIZES = [10, 25, 50, 100];
+
+// Page numbers to show: first, last, and a few around the current page, with
+// gaps marked by null so a long list stays compact.
+function pageList(current, total) {
+  const wanted = new Set([1, total, current - 1, current, current + 1]);
+  if (current <= 3) [2, 3, 4].forEach((n) => wanted.add(n));
+  if (current >= total - 2) [total - 3, total - 2, total - 1].forEach((n) => wanted.add(n));
+  const nums = [...wanted].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
+  const out = [];
+  nums.forEach((n, i) => {
+    if (i > 0 && n - nums[i - 1] > 1) out.push(null);
+    out.push(n);
+  });
+  return out;
+}
+
+function Pagination({ page, totalPages, pageSize, total, onPage, onPageSize }) {
+  const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, total);
+  return (
+    <nav className="pager" aria-label="Attendance logs pages">
+      <p className="muted pager-info" role="status">
+        Showing {first}–{last} of {total}
+      </p>
+      <div className="pager-controls">
+        <label className="pager-size">
+          <span>Rows per page</span>
+          <select className="field-select" value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))}>
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="pager-pages">
+          <button type="button" className="btn btn-quiet" onClick={() => onPage(page - 1)} disabled={page <= 1}>
+            Previous
+          </button>
+          {pageList(page, totalPages).map((n, i) =>
+            n === null ? (
+              <span key={`gap-${i}`} className="pager-gap" aria-hidden="true">
+                …
+              </span>
+            ) : (
+              <button
+                key={n}
+                type="button"
+                className={`btn btn-quiet pager-num${n === page ? ' is-current' : ''}`}
+                onClick={() => onPage(n)}
+                aria-current={n === page ? 'page' : undefined}
+                aria-label={`Page ${n}`}
+              >
+                {n}
+              </button>
+            )
+          )}
+          <button type="button" className="btn btn-quiet" onClick={() => onPage(page + 1)} disabled={page >= totalPages}>
+            Next
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
 function NumberBox({ label, value, onChange, max }) {
   return (
     <label className="num-box">
@@ -79,6 +146,8 @@ const TYPING_DELAY_MS = 300;
 function AttendanceLogs() {
   const { user } = useAuth();
   const [filters, setFilters] = useState(EMPTY);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -101,10 +170,14 @@ function AttendanceLogs() {
       silentRef.current = false;
       if (!silent) setLoading(true);
       try {
-        const qs = buildParams(filters);
-        const result = await api(`/statistics/attendance${qs ? `?${qs}` : ''}`);
+        const qs = new URLSearchParams(buildParams(filters));
+        qs.set('page', String(page));
+        qs.set('pageSize', String(pageSize));
+        const result = await api(`/statistics/attendance?${qs}`);
         if (requestId !== latestRequest.current) return;
         setData(result);
+        // The server moves to the last page if this one no longer exists.
+        if (result.page !== page) setPage(result.page);
         if (result.serverTime) setServerOffset(new Date(result.serverTime).getTime() - Date.now());
         setError('');
       } catch (err) {
@@ -116,7 +189,7 @@ function AttendanceLogs() {
     }, TYPING_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [filters, formError, refreshKey]);
+  }, [filters, page, pageSize, formError, refreshKey]);
 
   // New taps, manual entries and time-outs arrive here without a page refresh.
   useLiveReload(['attendance'], () => {
@@ -129,8 +202,22 @@ function AttendanceLogs() {
   const minutesFor = (r) =>
     r.active ? Math.max(Math.floor((now - new Date(r.timeIn).getTime()) / 60000), 0) : r.durationMinutes;
 
-  const set = (name) => (e) => setFilters((f) => ({ ...f, [name]: e.target.value }));
-  const onReset = () => setFilters(EMPTY);
+  const set = (name) => (e) => {
+    setFilters((f) => ({ ...f, [name]: e.target.value }));
+    setPage(1);
+  };
+  const onReset = () => {
+    setFilters(EMPTY);
+    setPage(1);
+  };
+  const goToPage = (n) => {
+    setPage(n);
+    document.getElementById('logs-h')?.scrollIntoView({ block: 'start' });
+  };
+  const changePageSize = (n) => {
+    setPageSize(n);
+    setPage(1);
+  };
   const isFiltered = Object.keys(EMPTY).some((k) => filters[k] !== '');
 
   const records = data?.records || [];
@@ -214,10 +301,8 @@ function AttendanceLogs() {
         <div className="table-head">
           <h2 id="logs-h">Attendance logs</h2>
           {data && (
-            <p className="muted" role="status">
-              {data.limited
-                ? `Showing the latest ${records.length} of ${data.total} records`
-                : `${data.total} ${data.total === 1 ? 'record' : 'records'}`}
+            <p className="muted">
+              {data.total} {data.total === 1 ? 'record' : 'records'}
             </p>
           )}
         </div>
@@ -270,6 +355,17 @@ function AttendanceLogs() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {data && data.total > 0 && (
+          <Pagination
+            page={data.page}
+            totalPages={data.totalPages}
+            pageSize={data.pageSize}
+            total={data.total}
+            onPage={goToPage}
+            onPageSize={changePageSize}
+          />
         )}
       </section>
     </>

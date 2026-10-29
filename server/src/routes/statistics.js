@@ -10,7 +10,8 @@ const router = Router();
 // Same access as the kiosk screen: signed-in admins and librarians only.
 router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
 
-const MAX_ROWS = 500;
+const PAGE_SIZES = [10, 25, 50, 100];
+const DEFAULT_PAGE_SIZE = 25;
 const MAX_MINUTES = 60 * 24 * 366;
 
 const iso = (d) => (d ? new Date(d).toISOString() : null);
@@ -23,6 +24,20 @@ function toWholeNumber(value, label) {
   const n = Number(value);
   if (n > MAX_MINUTES) throw httpError(400, `${label} is too large.`);
   return n;
+}
+
+function parsePaging(q) {
+  let pageSize = DEFAULT_PAGE_SIZE;
+  if (q.pageSize !== undefined && q.pageSize !== '') {
+    pageSize = typeof q.pageSize === 'string' && /^\d{1,3}$/.test(q.pageSize) ? Number(q.pageSize) : 0;
+    if (!PAGE_SIZES.includes(pageSize)) throw httpError(400, 'Invalid page size.');
+  }
+  let page = 1;
+  if (q.page !== undefined && q.page !== '') {
+    page = typeof q.page === 'string' && /^\d{1,7}$/.test(q.page) ? Number(q.page) : 0;
+    if (page < 1) throw httpError(400, 'Invalid page.');
+  }
+  return { page, pageSize };
 }
 
 function buildFilters(q) {
@@ -81,19 +96,26 @@ const WITH_DURATION = `
 router.get('/attendance', async (req, res, next) => {
   try {
     const { clause, params } = buildFilters(req.query);
+    const { page: wanted, pageSize } = parsePaging(req.query);
 
-    const [rows, counts, courses] = await Promise.all([
-      query(
-        `SELECT * FROM (${WITH_DURATION}) r ${clause}
-          ORDER BY time_in DESC, source_id DESC
-          LIMIT ${MAX_ROWS}`,
-        params
-      ),
+    const [counts, courses] = await Promise.all([
       query(`SELECT COUNT(*) AS total FROM (${WITH_DURATION}) r ${clause}`, params),
       query(`SELECT DISTINCT course FROM manual_attendance ORDER BY course`),
     ]);
 
     const total = Number(counts[0].total);
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+    // A page past the end (rows were deleted, or a filter narrowed the list) lands on the last page.
+    const page = Math.min(wanted, totalPages);
+
+    // page and pageSize are validated whole numbers, so they are safe to place in the SQL.
+    const rows = await query(
+      `SELECT * FROM (${WITH_DURATION}) r ${clause}
+        ORDER BY time_in DESC, attendance_type, source_id DESC
+        LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
+      params
+    );
+
     res.set('Cache-Control', 'no-store');
     res.json({
       serverTime: new Date().toISOString(),
@@ -110,7 +132,9 @@ router.get('/attendance', async (req, res, next) => {
         active: !r.time_out,
       })),
       total,
-      limited: total > rows.length,
+      page,
+      pageSize,
+      totalPages,
       options: { courses: courses.map((c) => c.course) },
     });
   } catch (err) {
