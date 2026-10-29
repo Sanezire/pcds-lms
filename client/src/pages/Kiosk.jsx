@@ -326,7 +326,7 @@ export default function Kiosk() {
         <div className="kiosk-brand">
           <img src={LOGO_SRC} alt="" width="52" height="52" />
           <div className="kiosk-brand-text">
-            <span className="kiosk-brand-name">PCDS RFID Kiosk</span>
+            <span className="kiosk-brand-name">PCDS LRC</span>
             <span className="kiosk-brand-sub">Polytechnic College of Davao del Sur</span>
           </div>
         </div>

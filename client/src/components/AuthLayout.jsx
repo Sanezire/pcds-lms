@@ -123,7 +123,7 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
         <div className="auth-brand">
           <BrandMark size={72} />
           <div>
-            <p className="auth-brand-name">PCDS RFID Kiosk</p>
+            <p className="auth-brand-name">PCDS LRC</p>
             <p className="auth-brand-tag">Secure · Simple · Convenient</p>
           </div>
         </div>

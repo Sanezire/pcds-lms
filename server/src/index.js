@@ -66,7 +66,7 @@ app.use((err, req, res, next) => {
 });
 
 const server = app.listen(config.port, () => {
-  console.log(`PCDS RFID Kiosk API listening on http://localhost:${config.port}`);
+  console.log(`PCDS LRC API listening on http://localhost:${config.port}`);
 });
 
 const cleanup = setInterval(() => {

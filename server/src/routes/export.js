@@ -145,7 +145,7 @@ function sendPdf(res, { rows, tz, fmt, label, filename }) {
     layout: 'landscape',
     margin: 36,
     bufferPages: true,
-    info: { Title: `Attendance report - ${label}`, Author: 'PCDS RFID Kiosk' },
+    info: { Title: `Attendance report - ${label}`, Author: 'PCDS LRC' },
   });
   res.set({
     'Content-Type': 'application/pdf',
@@ -162,7 +162,7 @@ function sendPdf(res, { rows, tz, fmt, label, filename }) {
   const rfid = rows.filter((r) => r.attendance_type === 'rfid').length;
   const open = rows.filter((r) => !r.time_out).length;
 
-  doc.font('Helvetica-Bold').fontSize(17).fillColor('#185688').text('PCDS RFID Kiosk - Attendance Report', left, 36);
+  doc.font('Helvetica-Bold').fontSize(17).fillColor('#185688').text('PCDS LRC - Attendance Report', left, 36);
   doc.font('Helvetica-Bold').fontSize(11).fillColor('#14283c').text(pdfSafe(label), left, doc.y + 2);
   doc
     .font('Helvetica')

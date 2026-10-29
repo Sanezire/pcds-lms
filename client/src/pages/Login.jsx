@@ -81,7 +81,7 @@ export default function Login() {
   return (
     <AuthLayout
       title="Welcome Back"
-      subtitle="Sign in to access the PCDS RFID Kiosk system."
+      subtitle="Sign in to access the PCDS LRC system."
     >
       {formError && (
         <div className="alert alert-error" role="alert">
