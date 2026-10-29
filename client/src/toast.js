@@ -7,13 +7,11 @@ const toast = Swal.mixin({
   position: 'top-end',
   showConfirmButton: false,
   timer: 3000,
-  timerProgressBar: true,
   iconColor: '#17653f',
   customClass: {
     popup: 'pcds-swal-toast',
     title: 'pcds-swal-toast-title',
     htmlContainer: 'pcds-swal-toast-text',
-    timerProgressBar: 'pcds-swal-toast-bar',
   },
   // Keep it open while the pointer is on it.
   didOpen: (el) => {
@@ -30,14 +28,12 @@ const kioskToast = Swal.mixin({
   position: 'top-end',
   showConfirmButton: false,
   timer: 5000,
-  timerProgressBar: true,
   iconColor: '#17653f',
   customClass: {
     container: 'pcds-kiosk-toast-container',
     popup: 'pcds-swal-toast pcds-kiosk-toast',
     title: 'pcds-swal-toast-title',
     htmlContainer: 'pcds-swal-toast-text',
-    timerProgressBar: 'pcds-swal-toast-bar',
   },
 });
 

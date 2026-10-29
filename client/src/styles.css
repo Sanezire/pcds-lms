@@ -1477,9 +1477,6 @@ a:hover {
   font-size: 0.875rem;
   color: var(--muted);
 }
-.pcds-swal-toast-bar.swal2-timer-progress-bar {
-  background: var(--blue-300);
-}
 
 /* ---------- Export attendance (Statistics) ---------- */
 .export-panel {
