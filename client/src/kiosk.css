@@ -376,27 +376,6 @@
     transform: scaleX(0);
   }
 }
-.kiosk-message-btn {
-  align-self: center;
-  min-width: 180px;
-  min-height: 56px;
-  padding: 10px 32px;
-  font: inherit;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--white);
-  background: var(--blue-600);
-  border: 0;
-  border-radius: 12px;
-  cursor: pointer;
-}
-.kiosk-message-btn:hover {
-  background: var(--blue-700);
-}
-.kiosk-message-btn:focus-visible {
-  outline: 4px solid var(--blue-300);
-  outline-offset: 3px;
-}
 @media (prefers-reduced-motion: reduce) {
   .kiosk-message-bar span {
     animation: none;

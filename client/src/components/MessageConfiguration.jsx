@@ -294,7 +294,7 @@ function SendNow() {
   return (
     <form onSubmit={onSubmit} noValidate className="msg-section">
       <h3>Send a message to the kiosk</h3>
-      <p className="muted">Shows on the kiosk screen right away for 5 seconds, or until someone taps Proceed.</p>
+      <p className="muted">Shows on the kiosk screen right away for 5 seconds.</p>
       <MessageBox id={id} label="Message" value={text} onChange={onTextChange} error={error} />
       <div className="msg-actions">
         <label className="msg-keep">

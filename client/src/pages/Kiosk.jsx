@@ -76,29 +76,24 @@ function Icon({ name }) {
 }
 
 // Message box above the tap instruction. A message sent from the dashboard
-// shows for 5 seconds (or until Proceed is tapped); a kept message has no
-// button or countdown and stays until staff switch it off. It is not an
-// overlay, so cards can still be tapped while it is showing.
-function KioskNotice({ text, onProceed }) {
+// shows for 5 seconds, with a countdown bar, and then goes away by itself; a
+// kept message has no countdown and stays until staff switch it off. It is not
+// an overlay, so cards can still be tapped while it is showing.
+function KioskNotice({ text, onDone }) {
   useEffect(() => {
-    if (!onProceed) return undefined;
-    const timer = setTimeout(onProceed, MESSAGE_MS);
+    if (!onDone) return undefined;
+    const timer = setTimeout(onDone, MESSAGE_MS);
     return () => clearTimeout(timer);
-  }, [onProceed]);
+  }, [onDone]);
 
   return (
     <section className="kiosk-message" role="status" aria-live="polite" aria-atomic="true">
       <h2 className="kiosk-message-title">Message</h2>
       <p className="kiosk-message-text">{text}</p>
-      {onProceed && (
-        <>
-          <div className="kiosk-message-bar" aria-hidden="true">
-            <span style={{ animationDuration: `${MESSAGE_MS}ms` }} />
-          </div>
-          <button type="button" className="kiosk-message-btn" onClick={onProceed}>
-            Proceed
-          </button>
-        </>
+      {onDone && (
+        <div className="kiosk-message-bar" aria-hidden="true">
+          <span style={{ animationDuration: `${MESSAGE_MS}ms` }} />
+        </div>
       )}
     </section>
   );
@@ -347,7 +342,7 @@ export default function Kiosk() {
         <img className="kiosk-logo" src={LOGO_SRC} alt="Polytechnic College of Davao del Sur seal" />
         <h1 className="kiosk-title">Library Attendance</h1>
         {currentMessage ? (
-          <KioskNotice key={currentMessage.key} text={currentMessage.text} onProceed={proceed} />
+          <KioskNotice key={currentMessage.key} text={currentMessage.text} onDone={proceed} />
         ) : (
           pinned !== null && <KioskNotice text={pinned} />
         )}
