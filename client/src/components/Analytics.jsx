@@ -141,7 +141,6 @@ export default function Analytics() {
         ['Visits this month', summary.thisMonth],
         ['Visits this week', summary.thisWeek],
         ['Visits today', summary.today],
-        ['Unique students who visited this month', summary.studentsThisMonth],
       ]
     : [];
   const hasVisits = data && data.periodTotal > 0;

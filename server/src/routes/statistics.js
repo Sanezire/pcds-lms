@@ -199,10 +199,9 @@ router.get('/visits', async (req, res, next) => {
         `SELECT COUNT(*) AS total,
                 COALESCE(SUM(d >= ?), 0) AS this_month,
                 COALESCE(SUM(d >= ?), 0) AS this_week,
-                COALESCE(SUM(d = ?), 0) AS today,
-                COUNT(DISTINCT CASE WHEN d >= ? THEN student_id END) AS students_month
+                COALESCE(SUM(d = ?), 0) AS today
            FROM (${VISIT_DAYS_SQL}) x`,
-        [monthStart, weekStart, today, monthStart]
+        [monthStart, weekStart, today]
       ),
     ]);
 
@@ -240,7 +239,6 @@ router.get('/visits', async (req, res, next) => {
         thisMonth: Number(sum.this_month),
         thisWeek: Number(sum.this_week),
         today: Number(sum.today),
-        studentsThisMonth: Number(sum.students_month),
       },
     });
   } catch (err) {
