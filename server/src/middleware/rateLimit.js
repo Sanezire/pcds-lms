@@ -42,3 +42,12 @@ export const registerLimiter = rateLimit({
   skipSuccessfulRequests: true,
   handler: tooMany('Too many registration attempts. Try again later.'),
 });
+
+// The kiosk scan has no sign-in, so it is limited per client IP to slow down
+// anyone trying IDs one after another. A busy desk reader stays well under this.
+export const kioskScanLimiter = rateLimit({
+  ...base,
+  windowMs: 60 * 1000,
+  limit: 60,
+  handler: tooMany('Too many scans. Wait a moment and try again.'),
+});

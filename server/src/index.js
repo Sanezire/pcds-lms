@@ -8,12 +8,12 @@ import { purgeExpiredSessions } from './sessions.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { requireCustomHeader } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
-import attendanceRoutes from './routes/attendance.js';
+import kioskRoutes from './routes/kiosk.js';
 import manualAttendanceRoutes from './routes/manualAttendance.js';
 import statisticsRoutes from './routes/statistics.js';
 import exportRoutes from './routes/export.js';
 import messageRoutes from './routes/messages.js';
-import eventRoutes, { closeAllClients } from './events.js';
+import eventRoutes, { kioskStreamRouter, closeAllClients } from './events.js';
 
 const app = express();
 
@@ -26,7 +26,7 @@ app.use(
     origin: config.clientOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Kiosk-Key'],
   })
 );
 app.use(express.json({ limit: '10kb' }));
@@ -37,10 +37,11 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 // Live-update stream: one long-lived connection per open screen, so it sits
 // outside the per-request rate limiter.
 app.use('/api/events', eventRoutes);
+app.use('/api/kiosk/events', kioskStreamRouter);
 
 app.use('/api', apiLimiter, requireCustomHeader);
 app.use('/api/auth', authRoutes);
-app.use('/api/attendance', attendanceRoutes);
+app.use('/api/kiosk', kioskRoutes);
 app.use('/api/manual-attendance', manualAttendanceRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/export', exportRoutes);

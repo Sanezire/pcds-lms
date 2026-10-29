@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { config, ROLES } from '../config.js';
-import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
+import { config } from '../config.js';
+import { httpError } from '../middleware/auth.js';
+import { requireKioskKey } from '../middleware/kioskKey.js';
+import { kioskScanLimiter } from '../middleware/rateLimit.js';
 import { publish } from '../events.js';
+import { readPinned } from './messages.js';
 
 const router = Router();
 
@@ -10,8 +13,10 @@ const ID_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
 const DUPLICATE_WINDOW_MS = 5000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// The kiosk screen runs under a signed-in staff session (admin or librarian).
-router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
+// Everything the kiosk screen needs. The kiosk has no sign-in, so nothing here
+// reads or changes staff data: it only records taps and reads messages meant
+// for the screen. An optional KIOSK_KEY can lock these routes to one device.
+router.use(requireKioskKey);
 
 // Start of the current attendance day (local midnight) expressed in UTC.
 function startOfLocalDayUtc(nowMs) {
@@ -22,7 +27,7 @@ function startOfLocalDayUtc(nowMs) {
 // Records one card tap. The first tap of the day is Time In, the next is
 // Time Out, and so on. Every failure returns the same generic message so the
 // screen never reveals whether an ID exists or what state an account is in.
-router.post('/scan', async (req, res, next) => {
+router.post('/scan', kioskScanLimiter, async (req, res, next) => {
   try {
     const studentId = typeof req.body?.studentId === 'string' ? req.body.studentId.trim() : '';
     if (!ID_PATTERN.test(studentId)) throw httpError(400, 'Scan failed.');
@@ -60,8 +65,8 @@ router.post('/scan', async (req, res, next) => {
 
     const action = last && last.action === 'in' ? 'out' : 'in';
     await query(
-      `INSERT INTO attendance (user_id, action, recorded_at, kiosk_user_id) VALUES (?, ?, ?, ?)`,
-      [student.id, action, now, req.user.id]
+      `INSERT INTO attendance (user_id, action, recorded_at) VALUES (?, ?, ?)`,
+      [student.id, action, now]
     );
     publish('attendance');
 
@@ -77,6 +82,45 @@ router.post('/scan', async (req, res, next) => {
       attendance: { studentId: student.member_id, action, recordedAt: now.toISOString() },
       message: (rules[0] && (action === 'in' ? rules[0].message : rules[0].message_out)) || null,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// The kiosk screen polls this for messages sent from the dashboard. The first call (no "after") only learns the
+// latest message number, so a freshly opened kiosk never replays old messages.
+router.get('/messages', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+
+    if (req.query.after === undefined) {
+      const rows = await query('SELECT COALESCE(MAX(id), 0) AS latest FROM kiosk_broadcasts');
+      return res.json({ messages: [], latestId: Number(rows[0].latest), pinned: await readPinned() });
+    }
+
+    if (typeof req.query.after !== 'string' || !/^\d{1,18}$/.test(req.query.after)) {
+      throw httpError(400, 'Invalid request.');
+    }
+    const after = Number(req.query.after);
+    const rows = await query(
+      'SELECT id, message FROM kiosk_broadcasts WHERE id > ? ORDER BY id LIMIT 10',
+      [after]
+    );
+    res.json({
+      messages: rows.map((r) => ({ id: r.id, text: r.message })),
+      latestId: rows.length ? rows[rows.length - 1].id : after,
+      pinned: await readPinned(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// The message kept on screen until staff switch it off.
+router.get('/pinned', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ pinned: await readPinned() });
   } catch (err) {
     next(err);
   }
