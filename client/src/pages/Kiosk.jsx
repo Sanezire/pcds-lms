@@ -75,46 +75,32 @@ function Icon({ name }) {
   );
 }
 
-// Message pop-up. Closes on its own after 5 seconds, or sooner with Proceed.
-function KioskMessage({ text, onProceed }) {
-  const buttonRef = useRef(null);
-
+// Message box above the tap instruction. A message sent from the dashboard
+// shows for 5 seconds (or until Proceed is tapped); a kept message has no
+// button or countdown and stays until staff switch it off. It is not an
+// overlay, so cards can still be tapped while it is showing.
+function KioskNotice({ text, onProceed }) {
   useEffect(() => {
-    buttonRef.current?.focus();
+    if (!onProceed) return undefined;
     const timer = setTimeout(onProceed, MESSAGE_MS);
     return () => clearTimeout(timer);
   }, [onProceed]);
 
   return (
-    <div className="kiosk-overlay">
-      <div className="kiosk-message" role="dialog" aria-modal="true" aria-labelledby="kiosk-message-title">
-        <h2 id="kiosk-message-title" className="kiosk-message-title">
-          Message
-        </h2>
-        <p className="kiosk-message-text">{text}</p>
-        <div className="kiosk-message-bar" aria-hidden="true">
-          <span style={{ animationDuration: `${MESSAGE_MS}ms` }} />
-        </div>
-        <button ref={buttonRef} type="button" className="kiosk-message-btn" onClick={onProceed}>
-          Proceed
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Message kept on screen by staff. No Proceed button and no countdown: it
-// stays until staff switch it off on the dashboard, and edits show up as typed.
-function KioskPinnedMessage({ text }) {
-  return (
-    <div className="kiosk-overlay">
-      <div className="kiosk-message" role="dialog" aria-modal="true" aria-labelledby="kiosk-pinned-title">
-        <h2 id="kiosk-pinned-title" className="kiosk-message-title">
-          Message
-        </h2>
-        <p className="kiosk-message-text">{text}</p>
-      </div>
-    </div>
+    <section className="kiosk-message" role="status" aria-live="polite" aria-atomic="true">
+      <h2 className="kiosk-message-title">Message</h2>
+      <p className="kiosk-message-text">{text}</p>
+      {onProceed && (
+        <>
+          <div className="kiosk-message-bar" aria-hidden="true">
+            <span style={{ animationDuration: `${MESSAGE_MS}ms` }} />
+          </div>
+          <button type="button" className="kiosk-message-btn" onClick={onProceed}>
+            Proceed
+          </button>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -158,7 +144,6 @@ export default function Kiosk() {
 
   const busyRef = useRef(false);
   const clearTimer = useRef(null);
-  const modalOpenRef = useRef(false);
 
   const backToReady = useCallback(() => {
     setPhase('idle');
@@ -186,8 +171,7 @@ export default function Kiosk() {
 
   const submitScan = useCallback(
     async (code) => {
-      // Taps are ignored while a message pop-up is on screen.
-      if (busyRef.current || modalOpenRef.current) return;
+      if (busyRef.current) return;
       clearTimeout(clearTimer.current);
 
       if (code.length < MIN_ID_LENGTH || code.length > MAX_ID_LENGTH || !ID_PATTERN.test(code)) {
@@ -232,10 +216,6 @@ export default function Kiosk() {
 
     const onKeyDown = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (modalOpenRef.current) {
-        buffer = '';
-        return;
-      }
 
       const now = Date.now();
       if (now - lastKeyAt > KEY_GAP_MS) buffer = '';
@@ -268,11 +248,6 @@ export default function Kiosk() {
 
   const currentMessage = messages[0] || null;
   const proceed = useCallback(() => setMessages((q) => q.slice(1)), []);
-
-  useEffect(() => {
-    // A kept message hides everything else, so taps are ignored while it is up.
-    modalOpenRef.current = Boolean(currentMessage || pinned !== null);
-  }, [currentMessage, pinned]);
 
   // The kept message changes the moment staff edit or switch it off. The
   // 3-second poll below is the backup if the live connection drops.
@@ -371,6 +346,11 @@ export default function Kiosk() {
       <main className="kiosk-main">
         <img className="kiosk-logo" src={LOGO_SRC} alt="Polytechnic College of Davao del Sur seal" />
         <h1 className="kiosk-title">Library Attendance</h1>
+        {currentMessage ? (
+          <KioskNotice key={currentMessage.key} text={currentMessage.text} onProceed={proceed} />
+        ) : (
+          pinned !== null && <KioskNotice text={pinned} />
+        )}
         <p className="kiosk-instruction">Please tap your RFID card on the reader.</p>
 
         <section className={`kiosk-card is-${phase}`} aria-live="polite" aria-atomic="true">
@@ -427,12 +407,6 @@ export default function Kiosk() {
           )}
         </section>
       </main>
-
-      {pinned !== null ? (
-        <KioskPinnedMessage text={pinned} />
-      ) : (
-        currentMessage && <KioskMessage key={currentMessage.key} text={currentMessage.text} onProceed={proceed} />
-      )}
 
       <footer className="kiosk-foot">
         <span className={`kiosk-dot is-${reader.tone}`} aria-hidden="true" />
