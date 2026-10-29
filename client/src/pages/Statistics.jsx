@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useLiveReload, useNow } from '../live.js';
-import { useAuth } from '../auth/AuthContext.jsx';
-import ExportPanel from '../components/ExportPanel.jsx';
 import Analytics from '../components/Analytics.jsx';
 
 const EMPTY = {
@@ -144,7 +142,6 @@ function NumberBox({ label, value, onChange, max }) {
 const TYPING_DELAY_MS = 300;
 
 function AttendanceLogs() {
-  const { user } = useAuth();
   const [filters, setFilters] = useState(EMPTY);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -225,8 +222,6 @@ function AttendanceLogs() {
 
   return (
     <>
-      {user.role === 'admin' && <ExportPanel />}
-
       <form className="panel filters" onSubmit={(e) => e.preventDefault()} noValidate>
         <div className="filter-grid">
           <div className="filter">

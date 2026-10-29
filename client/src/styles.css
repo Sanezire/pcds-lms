@@ -1694,43 +1694,6 @@ a:hover {
   color: var(--muted);
 }
 
-/* ---------- Export attendance (Statistics) ---------- */
-.export-panel {
-  display: grid;
-  gap: 18px;
-}
-.export-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 16px;
-}
-.export-controls .filter {
-  flex: 0 1 220px;
-  min-width: 170px;
-}
-.export-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-left: auto;
-}
-.export-actions .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-@media (max-width: 600px) {
-  .export-actions {
-    width: 100%;
-    margin-left: 0;
-  }
-  .export-actions .btn {
-    flex: 1;
-  }
-}
-
 /* Kiosk welcome notice: larger so it can be read from a distance */
 /* SweetAlert2 limits a toast container to 360px, which would clip the wider notice. */
 body.swal2-toast-shown .pcds-kiosk-toast-container.swal2-container {
