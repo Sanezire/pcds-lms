@@ -440,7 +440,7 @@ function IdMessages() {
         <div>
           <h3>Messages for specific IDs</h3>
           <p className="muted">
-            When one of these IDs is scanned, the kiosk shows the Time In or Time Out message after recording attendance.
+            When one of these IDs is scanned, the kiosk shows the Time In or Time Out message as a notification instead of the standard welcome.
           </p>
         </div>
         <button type="button" className="btn btn-primary btn-add" onClick={startAdd} aria-label="Add message" title="Add message">
@@ -561,7 +561,7 @@ export default function MessageConfiguration() {
             <img className="title-icon" src="/images/message_configuration_icon.png" alt="" />
             Message Configuration
           </h2>
-          <p className="muted">Messages appear on the kiosk as a pop-up for 5 seconds.</p>
+          <p className="muted">Sent messages appear on the kiosk as a pop-up. ID messages appear as a notification when the ID is scanned.</p>
         </div>
       </div>
       <SendNow />

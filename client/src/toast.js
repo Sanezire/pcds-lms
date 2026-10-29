@@ -22,6 +22,31 @@ const toast = Swal.mixin({
   },
 });
 
+// Welcome notice on the kiosk after a successful scan. Shows "Welcome to PCDS LRC"
+// with the student's ID underneath, or the ID's own message in place of the
+// welcome line. Both are plain text, so a message can never inject markup.
+const kioskToast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 5000,
+  timerProgressBar: true,
+  iconColor: '#17653f',
+  customClass: {
+    container: 'pcds-kiosk-toast-container',
+    popup: 'pcds-swal-toast pcds-kiosk-toast',
+    title: 'pcds-swal-toast-title',
+    htmlContainer: 'pcds-swal-toast-text',
+    timerProgressBar: 'pcds-swal-toast-bar',
+  },
+});
+
+export const WELCOME_TEXT = 'Welcome to PCDS LRC';
+
+export function showWelcomeToast(studentId, message) {
+  return kioskToast.fire({ icon: 'success', titleText: message || WELCOME_TEXT, text: studentId });
+}
+
 export function showSuccessToast(title, text) {
   return toast.fire({ icon: 'success', title, text });
 }

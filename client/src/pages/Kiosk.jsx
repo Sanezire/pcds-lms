@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, kioskKey } from '../api.js';
 import { useLiveReload } from '../live.js';
+import { showWelcomeToast } from '../toast.js';
 import '../kiosk.css';
 
 const LOGO_SRC = '/images/pcds_logo.png';
@@ -158,7 +159,6 @@ export default function Kiosk() {
   const busyRef = useRef(false);
   const clearTimer = useRef(null);
   const modalOpenRef = useRef(false);
-  const awaitingClearRef = useRef(false);
 
   const backToReady = useCallback(() => {
     setPhase('idle');
@@ -202,13 +202,10 @@ export default function Kiosk() {
         const data = await api('/kiosk/scan', { method: 'POST', body: { studentId: code } });
         setResult(data.attendance);
         setPhase('success');
-        if (data.message) {
-          // Show the ID's message first; the result stays up for its usual time afterwards.
-          awaitingClearRef.current = true;
-          setMessages((q) => [...q, { key: `scan-${Date.now()}`, text: data.message }]);
-        } else {
-          scheduleClear(SUCCESS_MS);
-        }
+        // Welcome notice with the student's ID (from the account, not the card
+        // number). An ID with its own message shows that instead of the welcome line.
+        showWelcomeToast(data.attendance.studentId, data.message);
+        scheduleClear(SUCCESS_MS);
       } catch (err) {
         showError(errorMessage(err));
       } finally {
@@ -275,12 +272,7 @@ export default function Kiosk() {
   useEffect(() => {
     // A kept message hides everything else, so taps are ignored while it is up.
     modalOpenRef.current = Boolean(currentMessage || pinned !== null);
-    // When the last pop-up closes, start the normal countdown for the result behind it.
-    if (!currentMessage && pinned === null && awaitingClearRef.current) {
-      awaitingClearRef.current = false;
-      scheduleClear(SUCCESS_MS);
-    }
-  }, [currentMessage, pinned, scheduleClear]);
+  }, [currentMessage, pinned]);
 
   // The kept message changes the moment staff edit or switch it off. The
   // 3-second poll below is the backup if the live connection drops.
