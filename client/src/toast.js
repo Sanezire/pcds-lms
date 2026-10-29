@@ -20,9 +20,9 @@ const toast = Swal.mixin({
   },
 });
 
-// Welcome notice on the kiosk after a successful scan. Shows "Welcome to PCDS LRC"
-// with the student's ID underneath, or the ID's own message in place of the
-// welcome line. Both are plain text, so a message can never inject markup.
+// Notice on the kiosk after a successful scan. Time In shows "Welcome to PCDS LRC"
+// and Time Out shows a goodbye, with the student's ID underneath. An ID's own
+// message replaces that line. All plain text, so a message can never inject markup.
 const kioskToast = Swal.mixin({
   toast: true,
   position: 'top-end',
@@ -38,9 +38,11 @@ const kioskToast = Swal.mixin({
 });
 
 export const WELCOME_TEXT = 'Welcome to PCDS LRC';
+export const GOODBYE_TEXT = 'Goodbye, see you again';
 
-export function showWelcomeToast(studentId, message) {
-  return kioskToast.fire({ icon: 'success', titleText: message || WELCOME_TEXT, text: studentId });
+export function showWelcomeToast(studentId, message, action = 'in') {
+  const line = message || (action === 'out' ? GOODBYE_TEXT : WELCOME_TEXT);
+  return kioskToast.fire({ icon: 'success', titleText: line, text: studentId });
 }
 
 export function showSuccessToast(title, text) {

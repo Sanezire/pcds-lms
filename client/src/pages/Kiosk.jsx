@@ -176,9 +176,9 @@ export default function Kiosk() {
         const data = await api('/kiosk/scan', { method: 'POST', body: { studentId: code } });
         setResult(data.attendance);
         setPhase('success');
-        // Welcome notice with the student's ID (from the account, not the card
+        // Welcome (Time In) or goodbye (Time Out) notice with the student's ID (from the account, not the card
         // number). An ID with its own message shows that instead of the welcome line.
-        showWelcomeToast(data.attendance.studentId, data.message);
+        showWelcomeToast(data.attendance.studentId, data.message, data.attendance.action);
         scheduleClear(SUCCESS_MS);
       } catch (err) {
         showError(errorMessage(err));
