@@ -4,6 +4,7 @@ import { ROLES } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { validateManualAttendance } from '../validation.js';
 import { publish } from '../events.js';
+import { ensureStudentsTable } from './kiosk.js';
 
 const router = Router();
 
@@ -27,6 +28,41 @@ function toRecord(row) {
     timeOut: iso(row.time_out),
   };
 }
+
+// Search the student records by name or student ID, so staff can fill in the
+// form from a match. Only what the form needs is returned (never the RFID number).
+router.get('/students', async (req, res, next) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().replace(/\s+/g, ' ').slice(0, 60) : '';
+    res.set('Cache-Control', 'no-store');
+    if (q.length < 2) return res.json({ students: [] });
+
+    await ensureStudentsTable();
+    // "|" is the escape character, so a typed % or _ is matched literally.
+    const like = `%${q.replace(/[|%_]/g, '|$&')}%`;
+    const rows = await query(
+      `SELECT s.student_id, s.full_name, s.course, s.gender,
+              EXISTS (SELECT 1 FROM manual_attendance m
+                       WHERE m.student_id = s.student_id AND m.time_out IS NULL) AS timed_in
+         FROM students_data s
+        WHERE s.full_name LIKE ? ESCAPE '|' OR s.student_id LIKE ? ESCAPE '|'
+        ORDER BY s.full_name ASC
+        LIMIT 8`,
+      [like, like]
+    );
+    res.json({
+      students: rows.map((r) => ({
+        studentId: r.student_id,
+        name: r.full_name,
+        course: r.course,
+        gender: r.gender,
+        timedIn: Boolean(r.timed_in),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Students still in come first, then the most recent visits.
 router.get('/', async (req, res, next) => {

@@ -29,7 +29,7 @@ function startOfLocalDayUtc(nowMs) {
 // The students table is created on first use, so a database set up before it
 // existed keeps working (an unknown card then simply fails like any other).
 let studentsTableReady = null;
-const ensureStudentsTable = () => {
+export const ensureStudentsTable = () => {
   if (!studentsTableReady) {
     studentsTableReady = query(
       `CREATE TABLE IF NOT EXISTS students_data (

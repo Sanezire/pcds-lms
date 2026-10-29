@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
@@ -80,6 +80,13 @@ function NewEntryForm({ record, onSaved, onClose }) {
     if (errors[name]) setErrors((er) => ({ ...er, [name]: undefined }));
   };
 
+  // Fill the form from a student record. The fields stay editable.
+  function fillFrom(student) {
+    setValues({ name: student.name, studentId: student.studentId, course: student.course, gender: student.gender });
+    setErrors({});
+    setFormError('');
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     setFormError('');
@@ -105,13 +112,14 @@ function NewEntryForm({ record, onSaved, onClose }) {
       <p className="modal-note">
         {record
           ? 'Update the student’s details. The recorded times stay the same.'
-          : 'For students without an RFID card. Time In is recorded when you submit.'}
+          : 'Search for the student to fill in their details, or type them in. Time In is recorded when you submit.'}
       </p>
       {formError && (
         <div className="alert alert-error" role="alert">
           {formError}
         </div>
       )}
+      {!record && <StudentSearch onPick={fillFrom} />}
       <Field label="Name" name="name" autoComplete="off" value={values.name} onChange={set('name')} error={errors.name} />
       <Field
         label="Student ID"
@@ -153,6 +161,90 @@ function NewEntryForm({ record, onSaved, onClose }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// Looks students up in the student records. Choosing one fills in the form.
+function StudentSearch({ onPick }) {
+  const inputId = useId();
+  const [term, setTerm] = useState('');
+  const [results, setResults] = useState(null); // null = not searched yet
+  const [searching, setSearching] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const latest = useRef(0);
+
+  useEffect(() => {
+    const q = term.trim();
+    latest.current += 1;
+    const ticket = latest.current;
+    if (q.length < 2) {
+      setResults(null);
+      setSearching(false);
+      setFailed(false);
+      return undefined;
+    }
+    setSearching(true);
+    // Wait for a pause in typing so each keystroke does not hit the server.
+    const timer = setTimeout(async () => {
+      try {
+        const data = await api(`/manual-attendance/students?q=${encodeURIComponent(q)}`);
+        if (ticket !== latest.current) return; // an older search finishing late
+        setResults(data.students);
+        setFailed(false);
+      } catch {
+        if (ticket !== latest.current) return;
+        setResults(null);
+        setFailed(true);
+      } finally {
+        if (ticket === latest.current) setSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [term]);
+
+  function pick(student) {
+    onPick(student);
+    setTerm('');
+  }
+
+  return (
+    <div className="field student-search">
+      <label htmlFor={inputId}>Find a student</label>
+      <div className="input-wrap">
+        <input
+          id={inputId}
+          type="search"
+          autoComplete="off"
+          placeholder="Search by name or student ID"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+        />
+      </div>
+      <div className="student-results-status" role="status">
+        {searching && <span className="muted">Searching…</span>}
+        {!searching && failed && <span className="error-text">Search is unavailable. Fill in the details below instead.</span>}
+        {!searching && !failed && results && results.length === 0 && (
+          <span className="muted">No student found. You can fill in the details below instead.</span>
+        )}
+      </div>
+      {!searching && results && results.length > 0 && (
+        <ul className="student-results">
+          {results.map((s) => (
+            <li key={s.studentId}>
+              <button type="button" className="student-result" onClick={() => pick(s)}>
+                <span className="student-result-main">
+                  <span className="record-name">{s.name}</span>
+                  <span className="record-sub">
+                    {s.studentId} · {s.course}
+                  </span>
+                </span>
+                {s.timedIn && <span className="status status-in">Timed in</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
