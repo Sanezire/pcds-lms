@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+import bcrypt from 'bcrypt';
 import { Router } from 'express';
 import { query } from '../db.js';
 import { config } from '../config.js';
@@ -24,6 +26,76 @@ function startOfLocalDayUtc(nowMs) {
   return new Date(Math.floor((nowMs + offsetMs) / DAY_MS) * DAY_MS - offsetMs);
 }
 
+// The students table is created on first use, so a database set up before it
+// existed keeps working (an unknown card then simply fails like any other).
+let studentsTableReady = null;
+const ensureStudentsTable = () => {
+  if (!studentsTableReady) {
+    studentsTableReady = query(
+      `CREATE TABLE IF NOT EXISTS students_data (
+         id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+         rfid_number VARCHAR(32)      NOT NULL,
+         student_id  VARCHAR(11)      NOT NULL,
+         full_name   VARCHAR(100)     NOT NULL,
+         course      VARCHAR(100)     NOT NULL,
+         gender      ENUM('male', 'female', 'other') NOT NULL,
+         year_level  TINYINT UNSIGNED NOT NULL,
+         created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+         PRIMARY KEY (id),
+         UNIQUE KEY uq_students_data_rfid (rfid_number),
+         UNIQUE KEY uq_students_data_student (student_id),
+         CONSTRAINT chk_students_data_rfid CHECK (rfid_number REGEXP '^[0-9A-Fa-f]+$'),
+         CONSTRAINT chk_students_data_student CHECK (student_id REGEXP '^[0-9]{4}-[0-9]{4}-[0-9]$'),
+         CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
+       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    ).catch((err) => {
+      studentsTableReady = null;
+      throw err;
+    });
+  }
+  return studentsTableReady;
+};
+
+// Finds the account a scanned value belongs to.
+//  1. An RFID number from students_data: the matching account (named by the
+//     student ID) is used, and created the first time that card is tapped.
+//  2. Otherwise the value is a member ID (for example staff such as the PCDS admin).
+async function findAccount(scanned) {
+  await ensureStudentsTable();
+  const cards = await query(
+    'SELECT student_id, full_name FROM students_data WHERE rfid_number = ? LIMIT 1',
+    [scanned.toUpperCase()]
+  );
+  const card = cards[0];
+
+  if (card) {
+    const find = () =>
+      query(`SELECT id, member_id FROM users WHERE member_id = ? AND status = 'active' LIMIT 1`, [card.student_id]);
+    let rows = await find();
+    if (!rows[0]) {
+      // No account yet. Students never sign in, so it gets an unusable random
+      // password; INSERT IGNORE keeps two simultaneous first taps from clashing.
+      const existing = await query('SELECT id FROM users WHERE member_id = ? LIMIT 1', [card.student_id]);
+      if (existing[0]) return null; // an account exists but is not active
+      const hash = await bcrypt.hash(randomBytes(32).toString('hex'), config.bcryptRounds);
+      await query(
+        `INSERT IGNORE INTO users (full_name, email, member_id, password_hash, role, status)
+         VALUES (?, ?, ?, ?, 'student', 'active')`,
+        [card.full_name, `${card.student_id.toLowerCase()}@students.pcds.local`, card.student_id, hash]
+      );
+      rows = await find();
+    }
+    return rows[0] || null;
+  }
+
+  const found = await query(
+    `SELECT id, member_id FROM users WHERE member_id = ? AND status = 'active' LIMIT 1`,
+    [scanned]
+  );
+  return found[0] || null;
+}
+
 // Records one card tap. The first tap of the day is Time In, the next is
 // Time Out, and so on. Every failure returns the same generic message so the
 // screen never reveals whether an ID exists or what state an account is in.
@@ -32,11 +104,7 @@ router.post('/scan', kioskScanLimiter, async (req, res, next) => {
     const studentId = typeof req.body?.studentId === 'string' ? req.body.studentId.trim() : '';
     if (!ID_PATTERN.test(studentId)) throw httpError(400, 'Scan failed.');
 
-    const found = await query(
-      `SELECT id, member_id FROM users WHERE member_id = ? AND status = 'active' LIMIT 1`,
-      [studentId]
-    );
-    const student = found[0];
+    const student = await findAccount(studentId);
     if (!student) throw httpError(404, 'Scan failed.');
 
     const now = new Date();

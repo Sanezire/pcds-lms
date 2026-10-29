@@ -112,3 +112,24 @@ CREATE TABLE IF NOT EXISTS kiosk_pinned (
   updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Student records used by the kiosk. A card tap sends the RFID number, which is
+-- looked up here to find the student. RFID numbers are hexadecimal (uppercase),
+-- and student IDs look like 2025-1042-3 (YYYY-XXXX-X).
+CREATE TABLE IF NOT EXISTS students_data (
+  id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  rfid_number VARCHAR(32)      NOT NULL,
+  student_id  VARCHAR(11)      NOT NULL,
+  full_name   VARCHAR(100)     NOT NULL,
+  course      VARCHAR(100)     NOT NULL,
+  gender      ENUM('male', 'female', 'other') NOT NULL,
+  year_level  TINYINT UNSIGNED NOT NULL,
+  created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_students_data_rfid (rfid_number),
+  UNIQUE KEY uq_students_data_student (student_id),
+  CONSTRAINT chk_students_data_rfid CHECK (rfid_number REGEXP '^[0-9A-Fa-f]+$'),
+  CONSTRAINT chk_students_data_student CHECK (student_id REGEXP '^[0-9]{4}-[0-9]{4}-[0-9]$'),
+  CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
