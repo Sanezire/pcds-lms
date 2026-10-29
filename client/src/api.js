@@ -6,6 +6,26 @@ export class ApiError extends Error {
   }
 }
 
+// The kiosk screen has no sign-in. If the server is set up with a kiosk key,
+// open /kiosk?key=... once on the kiosk device and it is remembered here.
+const KIOSK_KEY_STORAGE = 'pcds_kiosk_key';
+export const kioskKey = {
+  get() {
+    try {
+      return localStorage.getItem(KIOSK_KEY_STORAGE) || '';
+    } catch {
+      return '';
+    }
+  },
+  set(value) {
+    try {
+      localStorage.setItem(KIOSK_KEY_STORAGE, value);
+    } catch {
+      /* storage blocked: the key stays in the address bar for this visit only */
+    }
+  },
+};
+
 let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => {
   onUnauthorized = fn;
@@ -19,6 +39,7 @@ export async function api(path, { method = 'GET', body } = {}) {
       credentials: 'include',
       headers: {
         'X-Requested-With': 'pcds-lms',
+        ...(path.startsWith('/kiosk') && kioskKey.get() ? { 'X-Kiosk-Key': kioskKey.get() } : {}),
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,

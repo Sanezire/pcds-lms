@@ -42,7 +42,7 @@ const ensurePinnedTable = () => {
   return pinnedTableReady;
 };
 
-const readPinned = async () => {
+export const readPinned = async () => {
   await ensurePinnedTable();
   const rows = await query('SELECT message FROM kiosk_pinned WHERE id = 1');
   return rows.length ? rows[0].message : null;
@@ -257,35 +257,6 @@ router.delete('/pinned', async (req, res, next) => {
     await query('DELETE FROM kiosk_pinned WHERE id = 1');
     publish('messages');
     res.json({ pinned: null });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// The kiosk screen polls this. The first call (no "after") only learns the
-// latest message number, so a freshly opened kiosk never replays old messages.
-router.get('/kiosk', async (req, res, next) => {
-  try {
-    res.set('Cache-Control', 'no-store');
-
-    if (req.query.after === undefined) {
-      const rows = await query('SELECT COALESCE(MAX(id), 0) AS latest FROM kiosk_broadcasts');
-      return res.json({ messages: [], latestId: Number(rows[0].latest), pinned: await readPinned() });
-    }
-
-    if (typeof req.query.after !== 'string' || !/^\d{1,18}$/.test(req.query.after)) {
-      throw httpError(400, 'Invalid request.');
-    }
-    const after = Number(req.query.after);
-    const rows = await query(
-      'SELECT id, message FROM kiosk_broadcasts WHERE id > ? ORDER BY id LIMIT 10',
-      [after]
-    );
-    res.json({
-      messages: rows.map((r) => ({ id: r.id, text: r.message })),
-      latestId: rows.length ? rows[rows.length - 1].id : after,
-      pinned: await readPinned(),
-    });
   } catch (err) {
     next(err);
   }

@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError } from '../api.js';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, ApiError, kioskKey } from '../api.js';
 import { useLiveReload } from '../live.js';
 import '../kiosk.css';
 
@@ -132,7 +132,20 @@ const LiveClock = memo(function LiveClock() {
   );
 });
 
+// If the server uses a kiosk key, the kiosk device is set up once by opening
+// /kiosk?key=... The key is remembered and removed from the address bar.
+function captureKioskKey() {
+  const params = new URLSearchParams(window.location.search);
+  const key = params.get('key');
+  if (!key) return;
+  kioskKey.set(key.trim());
+  params.delete('key');
+  const rest = params.toString();
+  window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash);
+}
+
 export default function Kiosk() {
+  useMemo(captureKioskKey, []);
   const [phase, setPhase] = useState('idle'); // idle | busy | success | error
   const [result, setResult] = useState(null); // { studentId, action, recordedAt }
   const [message, setMessage] = useState('');
@@ -186,7 +199,7 @@ export default function Kiosk() {
       setResult(null);
       setPhase('busy');
       try {
-        const data = await api('/attendance/scan', { method: 'POST', body: { studentId: code } });
+        const data = await api('/kiosk/scan', { method: 'POST', body: { studentId: code } });
         setResult(data.attendance);
         setPhase('success');
         if (data.message) {
@@ -273,10 +286,10 @@ export default function Kiosk() {
   // 3-second poll below is the backup if the live connection drops.
   const loadPinned = useCallback(async () => {
     try {
-      const data = await api('/messages/pinned');
+      const data = await api('/kiosk/pinned');
       setPinned(data.pinned);
     } catch {
-      /* offline or signed out: the footer and route guard already show that */
+      /* offline: the status footer already shows that */
     }
   }, []);
   useLiveReload(['messages'], loadPinned);
@@ -290,7 +303,7 @@ export default function Kiosk() {
 
     const poll = async () => {
       try {
-        const data = await api(after === null ? '/messages/kiosk' : `/messages/kiosk?after=${after}`);
+        const data = await api(after === null ? '/kiosk/messages' : `/kiosk/messages?after=${after}`);
         if (!alive) return;
         after = data.latestId;
         if (data.pinned !== undefined) setPinned(data.pinned);
@@ -298,7 +311,7 @@ export default function Kiosk() {
           setMessages((q) => [...q, ...data.messages.map((m) => ({ key: `sent-${m.id}`, text: m.text }))]);
         }
       } catch {
-        // Offline or signed out: the status footer and route guard already show that.
+        // Offline: the status footer already shows that.
       }
       if (alive) timer = setTimeout(poll, MESSAGE_POLL_MS);
     };

@@ -33,6 +33,12 @@ export const config = {
   attendance: {
     utcOffsetMinutes: Number.isFinite(utcOffset) ? utcOffset : 480,
   },
+  // Optional shared key for the public kiosk screen. When set, the kiosk must
+  // present it (open /kiosk?key=... once on the kiosk device). When empty, the
+  // kiosk is open to anyone who can reach the site.
+  kiosk: {
+    key: (process.env.KIOSK_KEY || '').trim(),
+  },
   bcryptRounds: num(process.env.BCRYPT_ROUNDS, 12),
   // Shared secret required to create an administrator account at /register.
   // When empty, admin registration is switched off entirely.

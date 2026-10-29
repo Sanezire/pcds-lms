@@ -15,12 +15,10 @@ export default function App() {
         <Route path="/register" element={<Register />} />
       </Route>
 
-      <Route path="/" element={<Navigate to="/kiosk" replace />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-      {/* Student-facing kiosk screen. Runs under a signed-in staff session, without the admin shell. */}
-      <Route element={<ProtectedRoute roles={['admin', 'librarian']} />}>
-        <Route path="/kiosk" element={<Kiosk />} />
-      </Route>
+      {/* Student-facing kiosk screen. Separate from the admin pages: no sign-in, no admin shell. */}
+      <Route path="/kiosk" element={<Kiosk />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
