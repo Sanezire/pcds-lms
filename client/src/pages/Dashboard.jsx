@@ -3,8 +3,8 @@ import ManualAttendance from '../components/ManualAttendance.jsx';
 import MessageConfiguration from '../components/MessageConfiguration.jsx';
 
 const ROLE_COPY = {
-  admin: 'You have administrator access to the PCDS RFID Kiosk.',
-  librarian: 'You can run the PCDS RFID Kiosk.',
+  admin: 'You have administrator access to the PCDS LRC.',
+  librarian: 'You can run the PCDS LRC.',
   student: 'Your account is active. Kiosk features will appear here.',
 };
 

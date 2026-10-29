@@ -17,7 +17,7 @@ export default function AppShell() {
       <header className="topbar">
         <div className="brand">
           <BrandMark size={30} />
-          <span>PCDS RFID Kiosk</span>
+          <span>PCDS LRC</span>
         </div>
         <nav aria-label="Main">
           <NavLink to="/dashboard">Dashboard</NavLink>

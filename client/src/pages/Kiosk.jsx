@@ -1,5 +1,7 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError } from '../api.js';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, ApiError, kioskKey } from '../api.js';
+import { useLiveReload } from '../live.js';
+import { showWelcomeToast } from '../toast.js';
 import '../kiosk.css';
 
 const LOGO_SRC = '/images/pcds_logo.png';
@@ -73,31 +75,22 @@ function Icon({ name }) {
   );
 }
 
-// Message pop-up. Closes on its own after 5 seconds, or sooner with Proceed.
-function KioskMessage({ text, onProceed }) {
-  const buttonRef = useRef(null);
-
+// Message box above the tap instruction. A message sent from the dashboard
+// shows for 5 seconds and then goes away by itself; a kept message stays
+// until staff switch it off. It is not
+// an overlay, so cards can still be tapped while it is showing.
+function KioskNotice({ text, onDone }) {
   useEffect(() => {
-    buttonRef.current?.focus();
-    const timer = setTimeout(onProceed, MESSAGE_MS);
+    if (!onDone) return undefined;
+    const timer = setTimeout(onDone, MESSAGE_MS);
     return () => clearTimeout(timer);
-  }, [onProceed]);
+  }, [onDone]);
 
   return (
-    <div className="kiosk-overlay">
-      <div className="kiosk-message" role="dialog" aria-modal="true" aria-labelledby="kiosk-message-title">
-        <h2 id="kiosk-message-title" className="kiosk-message-title">
-          Message
-        </h2>
-        <p className="kiosk-message-text">{text}</p>
-        <div className="kiosk-message-bar" aria-hidden="true">
-          <span style={{ animationDuration: `${MESSAGE_MS}ms` }} />
-        </div>
-        <button ref={buttonRef} type="button" className="kiosk-message-btn" onClick={onProceed}>
-          Proceed
-        </button>
-      </div>
-    </div>
+    <section className="kiosk-message" role="status" aria-live="polite" aria-atomic="true">
+      <h2 className="kiosk-message-title">Message</h2>
+      <p className="kiosk-message-text">{text}</p>
+    </section>
   );
 }
 
@@ -116,7 +109,20 @@ const LiveClock = memo(function LiveClock() {
   );
 });
 
+// If the server uses a kiosk key, the kiosk device is set up once by opening
+// /kiosk?key=... The key is remembered and removed from the address bar.
+function captureKioskKey() {
+  const params = new URLSearchParams(window.location.search);
+  const key = params.get('key');
+  if (!key) return;
+  kioskKey.set(key.trim());
+  params.delete('key');
+  const rest = params.toString();
+  window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash);
+}
+
 export default function Kiosk() {
+  useMemo(captureKioskKey, []);
   const [phase, setPhase] = useState('idle'); // idle | busy | success | error
   const [result, setResult] = useState(null); // { studentId, action, recordedAt }
   const [message, setMessage] = useState('');
@@ -124,11 +130,10 @@ export default function Kiosk() {
   const [focused, setFocused] = useState(() => document.hasFocus());
 
   const [messages, setMessages] = useState([]); // pop-ups waiting to be shown, first one is on screen
+  const [pinned, setPinned] = useState(null); // text of the message kept on screen, or null
 
   const busyRef = useRef(false);
   const clearTimer = useRef(null);
-  const modalOpenRef = useRef(false);
-  const awaitingClearRef = useRef(false);
 
   const backToReady = useCallback(() => {
     setPhase('idle');
@@ -156,8 +161,7 @@ export default function Kiosk() {
 
   const submitScan = useCallback(
     async (code) => {
-      // Taps are ignored while a message pop-up is on screen.
-      if (busyRef.current || modalOpenRef.current) return;
+      if (busyRef.current) return;
       clearTimeout(clearTimer.current);
 
       if (code.length < MIN_ID_LENGTH || code.length > MAX_ID_LENGTH || !ID_PATTERN.test(code)) {
@@ -169,16 +173,13 @@ export default function Kiosk() {
       setResult(null);
       setPhase('busy');
       try {
-        const data = await api('/attendance/scan', { method: 'POST', body: { studentId: code } });
+        const data = await api('/kiosk/scan', { method: 'POST', body: { studentId: code } });
         setResult(data.attendance);
         setPhase('success');
-        if (data.message) {
-          // Show the ID's message first; the result stays up for its usual time afterwards.
-          awaitingClearRef.current = true;
-          setMessages((q) => [...q, { key: `scan-${Date.now()}`, text: data.message }]);
-        } else {
-          scheduleClear(SUCCESS_MS);
-        }
+        // Welcome notice with the student's ID (from the account, not the card
+        // number). An ID with its own message shows that instead of the welcome line.
+        showWelcomeToast(data.attendance.studentId, data.message);
+        scheduleClear(SUCCESS_MS);
       } catch (err) {
         showError(errorMessage(err));
       } finally {
@@ -205,10 +206,6 @@ export default function Kiosk() {
 
     const onKeyDown = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (modalOpenRef.current) {
-        buffer = '';
-        return;
-      }
 
       const now = Date.now();
       if (now - lastKeyAt > KEY_GAP_MS) buffer = '';
@@ -242,14 +239,17 @@ export default function Kiosk() {
   const currentMessage = messages[0] || null;
   const proceed = useCallback(() => setMessages((q) => q.slice(1)), []);
 
-  useEffect(() => {
-    modalOpenRef.current = Boolean(currentMessage);
-    // When the last pop-up closes, start the normal countdown for the result behind it.
-    if (!currentMessage && awaitingClearRef.current) {
-      awaitingClearRef.current = false;
-      scheduleClear(SUCCESS_MS);
+  // The kept message changes the moment staff edit or switch it off. The
+  // 3-second poll below is the backup if the live connection drops.
+  const loadPinned = useCallback(async () => {
+    try {
+      const data = await api('/kiosk/pinned');
+      setPinned(data.pinned);
+    } catch {
+      /* offline: the status footer already shows that */
     }
-  }, [currentMessage, scheduleClear]);
+  }, []);
+  useLiveReload(['messages'], loadPinned);
 
   // Messages sent from the dashboard. The first call only learns the latest
   // message number, so opening the kiosk never replays old messages.
@@ -260,14 +260,15 @@ export default function Kiosk() {
 
     const poll = async () => {
       try {
-        const data = await api(after === null ? '/messages/kiosk' : `/messages/kiosk?after=${after}`);
+        const data = await api(after === null ? '/kiosk/messages' : `/kiosk/messages?after=${after}`);
         if (!alive) return;
         after = data.latestId;
+        if (data.pinned !== undefined) setPinned(data.pinned);
         if (data.messages.length) {
           setMessages((q) => [...q, ...data.messages.map((m) => ({ key: `sent-${m.id}`, text: m.text }))]);
         }
       } catch {
-        // Offline or signed out: the status footer and route guard already show that.
+        // Offline: the status footer already shows that.
       }
       if (alive) timer = setTimeout(poll, MESSAGE_POLL_MS);
     };
@@ -325,7 +326,7 @@ export default function Kiosk() {
         <div className="kiosk-brand">
           <img src={LOGO_SRC} alt="" width="52" height="52" />
           <div className="kiosk-brand-text">
-            <span className="kiosk-brand-name">PCDS RFID Kiosk</span>
+            <span className="kiosk-brand-name">PCDS LRC</span>
             <span className="kiosk-brand-sub">Polytechnic College of Davao del Sur</span>
           </div>
         </div>
@@ -335,6 +336,11 @@ export default function Kiosk() {
       <main className="kiosk-main">
         <img className="kiosk-logo" src={LOGO_SRC} alt="Polytechnic College of Davao del Sur seal" />
         <h1 className="kiosk-title">Library Attendance</h1>
+        {currentMessage ? (
+          <KioskNotice key={currentMessage.key} text={currentMessage.text} onDone={proceed} />
+        ) : (
+          pinned !== null && <KioskNotice text={pinned} />
+        )}
         <p className="kiosk-instruction">Please tap your RFID card on the reader.</p>
 
         <section className={`kiosk-card is-${phase}`} aria-live="polite" aria-atomic="true">
@@ -391,8 +397,6 @@ export default function Kiosk() {
           )}
         </section>
       </main>
-
-      {currentMessage && <KioskMessage key={currentMessage.key} text={currentMessage.text} onProceed={proceed} />}
 
       <footer className="kiosk-foot">
         <span className={`kiosk-dot is-${reader.tone}`} aria-hidden="true" />

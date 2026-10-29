@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ROLES } from './config.js';
-import { requireAuth, requireRole } from './middleware/auth.js';
+import { requireAuth, requireRole, httpError } from './middleware/auth.js';
+import { requireKioskKey } from './middleware/kioskKey.js';
 
 // Live updates. Signed-in staff screens keep one Server-Sent Events connection
 // open; whenever data changes, the server announces which topic changed and
@@ -15,10 +16,7 @@ export function publish(topic) {
   for (const res of clients) res.write(frame);
 }
 
-const router = Router();
-router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
-
-router.get('/', (req, res) => {
+function openStream(req, res) {
   res.set({
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-store, no-transform',
@@ -35,6 +33,26 @@ router.get('/', (req, res) => {
     clearInterval(heartbeat);
     clients.delete(res);
   });
+}
+
+// Signed-in staff screens.
+const router = Router();
+router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
+router.get('/', openStream);
+
+// The kiosk screen, which has no sign-in. Frames only name the topic that
+// changed, never any data. The number of open streams is capped so strangers
+// cannot hold connections open.
+const MAX_KIOSK_STREAMS = 20;
+let kioskStreams = 0;
+export const kioskStreamRouter = Router();
+kioskStreamRouter.get('/', requireKioskKey, (req, res, next) => {
+  if (kioskStreams >= MAX_KIOSK_STREAMS) return next(httpError(503, 'Too many open screens.'));
+  kioskStreams += 1;
+  res.once('close', () => {
+    kioskStreams -= 1;
+  });
+  openStream(req, res);
 });
 
 export function closeAllClients() {

@@ -102,3 +102,13 @@ CREATE TABLE IF NOT EXISTS kiosk_broadcasts (
   KEY idx_kiosk_broadcasts_created (created_at),
   CONSTRAINT fk_kiosk_broadcasts_user FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One message that stays on the kiosk until staff switch it off. At most one
+-- row exists (id is always 1); no row means nothing is pinned.
+CREATE TABLE IF NOT EXISTS kiosk_pinned (
+  id          TINYINT UNSIGNED NOT NULL,
+  message     VARCHAR(500)     NOT NULL,
+  created_by  BIGINT UNSIGNED  NULL,
+  updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

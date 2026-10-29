@@ -323,92 +323,35 @@
   }
 }
 
-/* Message pop-up */
-.kiosk-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(1rem, 4vw, 3rem);
-  background: rgba(20, 40, 60, 0.6);
-}
+/* Message box above the tap instruction. Hidden (not rendered) until a message exists. */
 .kiosk-message {
   width: 100%;
   max-width: 760px;
-  max-height: 100%;
-  overflow-y: auto;
+  margin: 0.75rem auto 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: clamp(1.5rem, 4vw, 3rem);
+  gap: 0.75rem;
+  padding: clamp(1rem, 2.5vw, 1.75rem);
   text-align: center;
   background: var(--white);
   border: 2px solid var(--blue-200);
-  border-radius: 20px;
+  border-left: 6px solid var(--blue-500);
+  border-radius: 16px;
   user-select: text;
   -webkit-user-select: text;
 }
 .kiosk-message-title {
   margin: 0;
-  font-size: clamp(1.125rem, 2vw, 1.375rem);
+  font-size: clamp(1rem, 1.8vw, 1.125rem);
   font-weight: 600;
   color: var(--blue-700);
 }
 .kiosk-message-text {
   margin: 0;
-  font-size: clamp(1.5rem, 3.4vw, 2.5rem);
+  font-size: clamp(1.25rem, 2.8vw, 2rem);
   font-weight: 700;
   line-height: 1.3;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.kiosk-message-bar {
-  height: 8px;
-  background: var(--blue-100);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.kiosk-message-bar span {
-  display: block;
-  height: 100%;
-  background: var(--blue-500);
-  border-radius: 999px;
-  transform-origin: left center;
-  animation: kiosk-message-countdown linear forwards;
-}
-@keyframes kiosk-message-countdown {
-  from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
-  }
-}
-.kiosk-message-btn {
-  align-self: center;
-  min-width: 220px;
-  min-height: 64px;
-  padding: 14px 40px;
-  font: inherit;
-  font-size: 1.375rem;
-  font-weight: 700;
-  color: var(--white);
-  background: var(--blue-600);
-  border: 0;
-  border-radius: 14px;
-  cursor: pointer;
-}
-.kiosk-message-btn:hover {
-  background: var(--blue-700);
-}
-.kiosk-message-btn:focus-visible {
-  outline: 4px solid var(--blue-300);
-  outline-offset: 3px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .kiosk-message-bar span {
-    animation: none;
-  }
-}
+

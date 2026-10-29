@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
@@ -163,15 +163,117 @@ function SentMessages({ onClose }) {
   );
 }
 
+const PIN_SYNC_MS = 250; // edits to a kept message reach the kiosk this soon after typing
+
 function SendNow() {
   const id = useId();
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [showSent, setShowSent] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
+
+  const pinnedRef = useRef(false);
+  const lastSyncedRef = useRef(null); // text the kiosk currently shows
+  const syncTimer = useRef(null);
+  const syncSeq = useRef(0);
+
+  // Picks up the kept message from the server: when this screen opens, and when
+  // it is changed or switched off from another screen.
+  const loadPinned = useCallback(async () => {
+    try {
+      const data = await api('/messages/pinned');
+      const serverText = data.pinned;
+      if (serverText === null) {
+        if (pinnedRef.current && !syncTimer.current) {
+          pinnedRef.current = false;
+          lastSyncedRef.current = null;
+          setPinned(false);
+        }
+        return;
+      }
+      pinnedRef.current = true;
+      setPinned(true);
+      if (serverText !== lastSyncedRef.current && !syncTimer.current) {
+        lastSyncedRef.current = serverText;
+        setText(serverText);
+      }
+    } catch {
+      /* the next live update or refresh tries again */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPinned();
+    return () => clearTimeout(syncTimer.current);
+  }, [loadPinned]);
+
+  useLiveReload(['messages'], loadPinned);
+
+  async function syncPinned(value) {
+    const seq = ++syncSeq.current;
+    try {
+      await api('/messages/pinned', { method: 'PUT', body: { message: value } });
+      if (seq === syncSeq.current) lastSyncedRef.current = value;
+    } catch (err) {
+      if (seq === syncSeq.current) setError(err.fields?.message || err.message);
+    }
+  }
+
+  async function onTogglePinned(e) {
+    const on = e.target.checked;
+    setError('');
+    setPinBusy(true);
+    try {
+      if (on) {
+        if (!text.trim()) {
+          setError('Enter a message to keep on the kiosk.');
+          return;
+        }
+        await api('/messages/pinned', { method: 'PUT', body: { message: text } });
+        lastSyncedRef.current = text;
+        pinnedRef.current = true;
+        setPinned(true);
+      } else {
+        clearTimeout(syncTimer.current);
+        syncTimer.current = null;
+        syncSeq.current += 1;
+        await api('/messages/pinned', { method: 'DELETE' });
+        lastSyncedRef.current = null;
+        pinnedRef.current = false;
+        setPinned(false);
+      }
+    } catch (err) {
+      setError(err.fields?.message || err.message);
+    } finally {
+      setPinBusy(false);
+    }
+  }
+
+  function onTextChange(e) {
+    const value = e.target.value;
+    setText(value);
+    setError('');
+    if (!pinnedRef.current) return;
+
+    // The kiosk follows the text while it is kept. An empty box is not sent;
+    // the kiosk keeps showing the last text until staff type again or uncheck.
+    clearTimeout(syncTimer.current);
+    if (!value.trim()) {
+      syncTimer.current = null;
+      setError('Enter a message, or uncheck the box to remove it from the kiosk.');
+      return;
+    }
+    syncTimer.current = setTimeout(() => {
+      syncTimer.current = null;
+      syncPinned(value);
+    }, PIN_SYNC_MS);
+  }
 
   async function onSubmit(e) {
     e.preventDefault();
+    if (pinned) return;
     if (!text.trim()) {
       setError('Enter a message.');
       return;
@@ -192,22 +294,17 @@ function SendNow() {
   return (
     <form onSubmit={onSubmit} noValidate className="msg-section">
       <h3>Send a message to the kiosk</h3>
-      <p className="muted">Shows on the kiosk screen right away for 5 seconds, or until someone taps Proceed.</p>
-      <MessageBox
-        id={id}
-        label="Message"
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          setError('');
-        }}
-        error={error}
-      />
+      <p className="muted">Shows on the kiosk screen right away for 5 seconds.</p>
+      <MessageBox id={id} label="Message" value={text} onChange={onTextChange} error={error} />
       <div className="msg-actions">
+        <label className="msg-keep">
+          <input type="checkbox" checked={pinned} disabled={pinBusy} onChange={onTogglePinned} />
+          <span>Keep message displayed</span>
+        </label>
         <button type="button" className="btn btn-quiet btn-lg" onClick={() => setShowSent(true)}>
           View sent messages
         </button>
-        <button type="submit" className="btn btn-primary btn-lg" disabled={sending}>
+        <button type="submit" className="btn btn-primary btn-lg" disabled={sending || pinned}>
           <img className="btn-icon" src="/images/add_message_icon.png" alt="" />
           {sending ? 'Sending…' : 'Send to kiosk'}
         </button>
@@ -343,7 +440,7 @@ function IdMessages() {
         <div>
           <h3>Messages for specific IDs</h3>
           <p className="muted">
-            When one of these IDs is scanned, the kiosk shows the Time In or Time Out message after recording attendance.
+            When one of these IDs is scanned, the kiosk shows the Time In or Time Out message as a notification instead of the standard welcome.
           </p>
         </div>
         <button type="button" className="btn btn-primary btn-add" onClick={startAdd} aria-label="Add message" title="Add message">
@@ -464,7 +561,7 @@ export default function MessageConfiguration() {
             <img className="title-icon" src="/images/message_configuration_icon.png" alt="" />
             Message Configuration
           </h2>
-          <p className="muted">Messages appear on the kiosk as a pop-up for 5 seconds.</p>
+          <p className="muted">Sent messages appear on the kiosk as a pop-up. ID messages appear as a notification when the ID is scanned.</p>
         </div>
       </div>
       <SendNow />

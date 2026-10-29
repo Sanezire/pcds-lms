@@ -9,6 +9,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => setUser(null));
+    // The kiosk screen has no sign-in, so there is no session to look up.
+    if (window.location.pathname.startsWith('/kiosk')) {
+      setLoading(false);
+      return undefined;
+    }
     let active = true;
     api('/auth/me')
       .then((data) => active && setUser(data.user))

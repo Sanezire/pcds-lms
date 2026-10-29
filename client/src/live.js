@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { kioskKey } from './api.js';
 
 // One shared Server-Sent Events connection for the whole app. The server
 // announces which topic changed; screens subscribe to the topics they show.
@@ -7,7 +8,11 @@ let source = null;
 
 function connect() {
   if (source) return;
-  source = new EventSource('/api/events', { withCredentials: true });
+  // The kiosk screen has no sign-in, so it listens on its own public stream.
+  const onKiosk = window.location.pathname.startsWith('/kiosk');
+  const key = onKiosk ? kioskKey.get() : '';
+  const url = onKiosk ? `/api/kiosk/events${key ? `?key=${encodeURIComponent(key)}` : ''}` : '/api/events';
+  source = new EventSource(url, { withCredentials: true });
   const notify = (topic) => listeners.forEach((fn) => fn(topic));
   source.addEventListener('change', (e) => {
     try {

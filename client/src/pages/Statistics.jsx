@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useLiveReload, useNow } from '../live.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import ExportPanel from '../components/ExportPanel.jsx';
+import Analytics from '../components/Analytics.jsx';
 
 const EMPTY = {
   course: '',
@@ -74,7 +76,7 @@ function NumberBox({ label, value, onChange, max }) {
 // before asking the server, so each digit does not trigger its own request.
 const TYPING_DELAY_MS = 300;
 
-export default function Statistics() {
+function AttendanceLogs() {
   const { user } = useAuth();
   const [filters, setFilters] = useState(EMPTY);
   const [data, setData] = useState(null);
@@ -135,12 +137,7 @@ export default function Statistics() {
   const hidesRfid = Boolean(filters.course || filters.gender);
 
   return (
-    <div className="stats">
-      <header className="stats-head">
-        <h1>Statistics</h1>
-        <p className="lead">Attendance logs from the RFID kiosk and manual entries.</p>
-      </header>
-
+    <>
       {user.role === 'admin' && <ExportPanel />}
 
       <form className="panel filters" onSubmit={(e) => e.preventDefault()} noValidate>
@@ -275,6 +272,60 @@ export default function Statistics() {
           </div>
         )}
       </section>
+    </>
+  );
+}
+
+const VIEWS = [
+  { id: 'statistics', label: 'Statistics', lead: 'Attendance logs from the RFID kiosk and manual entries.' },
+  { id: 'analytics', label: 'Analytics', lead: 'Library visits over time, from the RFID kiosk and manual entries.' },
+];
+
+// The page title doubles as a switch: Statistics shows the attendance logs,
+// Analytics shows the visit graphs. The choice lives in the address (?view=)
+// so a refresh or a shared link opens the same screen.
+export default function Statistics() {
+  const [params, setParams] = useSearchParams();
+  const view = VIEWS.find((v) => v.id === params.get('view')) || VIEWS[0];
+
+  const choose = (id) => {
+    if (id === view.id) return;
+    setParams(id === 'statistics' ? {} : { view: id }, { replace: true });
+  };
+
+  return (
+    <div className="stats">
+      <header className="stats-head">
+        <div className="view-tabs" role="tablist" aria-label="Statistics views">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              role="tab"
+              id={`tab-${v.id}`}
+              aria-selected={v.id === view.id}
+              aria-controls="stats-view"
+              tabIndex={v.id === view.id ? 0 : -1}
+              className={`view-tab${v.id === view.id ? ' is-active' : ''}`}
+              onClick={() => choose(v.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                  const next = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
+                  choose(next.id);
+                  document.getElementById(`tab-${next.id}`)?.focus();
+                }
+              }}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <p className="lead">{view.lead}</p>
+      </header>
+
+      <div id="stats-view" role="tabpanel" aria-labelledby={`tab-${view.id}`} className="stats">
+        {view.id === 'analytics' ? <Analytics /> : <AttendanceLogs />}
+      </div>
     </div>
   );
 }

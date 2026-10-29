@@ -921,6 +921,166 @@ a:hover {
 .stats-head .lead {
   margin: 8px 0 0;
 }
+.view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 28px;
+}
+.view-tab {
+  position: relative;
+  margin: 0;
+  padding: 0 0 6px;
+  font: inherit;
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--muted);
+  opacity: 0.6;
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+.view-tab:hover {
+  opacity: 1;
+  color: var(--blue-600);
+}
+.view-tab.is-active {
+  color: var(--ink);
+  opacity: 1;
+  border-bottom-color: var(--blue-600);
+}
+.view-tab:focus-visible {
+  outline: 3px solid var(--blue-300);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.analytics {
+  display: grid;
+  gap: 20px;
+}
+.analytics-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.analytics-controls .filter {
+  min-width: 190px;
+}
+.analytics-period {
+  margin: 0;
+  color: var(--muted);
+}
+.analytics-period strong {
+  color: var(--ink);
+  font-size: 1.25rem;
+}
+.chart {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  height: 340px;
+  padding-bottom: 34px;
+}
+.chart-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 0.75rem;
+  color: var(--muted);
+  transform: translateY(-0.5em);
+  padding-bottom: 0;
+}
+.chart-scroll {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: visible;
+  min-width: 0;
+}
+.chart-plot {
+  position: relative;
+  height: 100%;
+}
+.chart-grid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: space-between;
+}
+.chart-grid i {
+  display: block;
+  height: 0;
+  border-top: 1px solid var(--line);
+}
+.chart-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.chart-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chart-barwrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.chart-bar {
+  display: block;
+  width: min(100%, 44px);
+  min-height: 0;
+  background: var(--blue-500);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.25s ease;
+}
+.chart-col:hover .chart-bar {
+  background: var(--blue-700);
+}
+.chart-value {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, -2px);
+  margin-bottom: 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.chart-label {
+  position: absolute;
+  bottom: -30px;
+  height: 24px;
+  width: 100%;
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: visible;
+}
+.summary-table {
+  max-width: 640px;
+}
+.summary-table .num {
+  text-align: right;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-bar {
+    transition: none;
+  }
+}
 .filters {
   display: grid;
   gap: 20px;
@@ -1130,6 +1290,19 @@ a:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+}
+.msg-keep {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.msg-keep input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--blue-600);
 }
 .status-text {
   margin-right: auto;
@@ -1464,9 +1637,6 @@ a:hover {
   font-size: 0.875rem;
   color: var(--muted);
 }
-.pcds-swal-toast-bar.swal2-timer-progress-bar {
-  background: var(--blue-300);
-}
 
 /* ---------- Export attendance (Statistics) ---------- */
 .export-panel {
@@ -1503,4 +1673,32 @@ a:hover {
   .export-actions .btn {
     flex: 1;
   }
+}
+
+/* Kiosk welcome notice: larger so it can be read from a distance */
+/* SweetAlert2 limits a toast container to 360px, which would clip the wider notice. */
+body.swal2-toast-shown .pcds-kiosk-toast-container.swal2-container {
+  width: min(100vw, 480px);
+}
+.pcds-kiosk-toast.swal2-popup.swal2-toast {
+  width: auto;
+  min-width: min(92vw, 420px);
+  max-width: min(92vw, 460px);
+  padding: 18px 26px 18px 20px;
+  border-radius: 16px;
+}
+.pcds-kiosk-toast .swal2-icon.swal2-success {
+  margin-right: 16px;
+}
+.pcds-kiosk-toast .pcds-swal-toast-title.swal2-title {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pcds-kiosk-toast .pcds-swal-toast-text.swal2-html-container {
+  margin-top: 4px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
 }
