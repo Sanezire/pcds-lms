@@ -143,3 +143,29 @@ export function validateRuleId(value) {
   }
   return { error: null, studentId };
 }
+
+// ---- Student records (students_data) ----
+const RFID_RE = /^[0-9A-Fa-f]{4,32}$/;
+const STUDENT_NUMBER_RE = /^[0-9]{4}-[0-9]{4}-[0-9]$/;
+const GENDER_WORDS = { male: 'male', m: 'male', female: 'female', f: 'female', other: 'other', o: 'other' };
+
+export function validateStudentRecord(body = {}) {
+  const rfidNumber = asString(body.rfidNumber).trim().toUpperCase();
+  const studentId = asString(body.studentId).trim();
+  const fullName = asString(body.fullName).trim().replace(/\s+/g, ' ');
+  const course = asString(body.course).trim().replace(/\s+/g, ' ');
+  const gender = GENDER_WORDS[asString(body.gender).trim().toLowerCase()] || '';
+  const yearText = asString(body.yearLevel ?? '').trim();
+  const yearLevel = /^[1-6]$/.test(yearText) ? Number(yearText) : null;
+  const errors = {};
+
+  if (!RFID_RE.test(rfidNumber)) errors.rfidNumber = 'RFID number must be 4 to 32 hexadecimal characters (0-9, A-F).';
+  if (!STUDENT_NUMBER_RE.test(studentId)) errors.studentId = 'Student ID must look like 2025-1042-3.';
+  if (fullName.length < 2 || fullName.length > 100) errors.fullName = 'Enter the full name (2 to 100 characters).';
+  else if (!NAME_RE.test(fullName)) errors.fullName = 'Name can only contain letters, spaces, periods, apostrophes and hyphens.';
+  if (course.length < 2 || course.length > 100) errors.course = 'Enter the course (2 to 100 characters).';
+  if (!gender) errors.gender = 'Choose a gender.';
+  if (yearLevel === null) errors.yearLevel = 'Year level must be 1 to 6.';
+
+  return { errors, values: { rfidNumber, studentId, fullName, course, gender, yearLevel } };
+}

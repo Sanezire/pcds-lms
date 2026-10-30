@@ -1822,3 +1822,21 @@ body.swal2-toast-shown .pcds-kiosk-toast-container.swal2-container {
 .trends-table tfoot th { text-align: left; color: var(--ink); font-size: 0.9375rem; }
 .trends-table { table-layout: auto; }
 @media (max-width: 600px) { .trends-type { width: 100%; } }
+
+/* ---------- Student records ---------- */
+.student-form { display: grid; gap: 16px; }
+.student-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 18px; }
+.student-form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.student-import { display: grid; gap: 14px; }
+.student-import code { background: var(--blue-100); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+.student-import-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.file-btn { position: relative; cursor: pointer; }
+.file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.file-btn:focus-within { outline: 3px solid var(--blue-300); outline-offset: 2px; }
+.file-name { overflow-wrap: anywhere; }
+.import-result { display: grid; gap: 14px; }
+.import-problems { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--blue-50); }
+.import-problems summary { cursor: pointer; font-weight: 600; }
+.import-problems ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; max-height: 240px; overflow: auto; }
+.student-search { min-width: min(100%, 280px); }
+.student-head { padding: 0 0 16px; }

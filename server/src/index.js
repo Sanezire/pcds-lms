@@ -10,6 +10,7 @@ import { requireCustomHeader } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import kioskRoutes from './routes/kiosk.js';
 import manualAttendanceRoutes from './routes/manualAttendance.js';
+import studentRoutes from './routes/students.js';
 import statisticsRoutes from './routes/statistics.js';
 import messageRoutes from './routes/messages.js';
 import eventRoutes, { kioskStreamRouter, closeAllClients } from './events.js';
@@ -28,6 +29,9 @@ app.use(
     allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Kiosk-Key'],
   })
 );
+// CSV imports are larger than any other request, so that one path gets a bigger
+// body limit (still rate limited); every other path keeps the small one.
+app.use('/api/students/import', apiLimiter, express.json({ limit: '1mb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 
@@ -42,6 +46,7 @@ app.use('/api', apiLimiter, requireCustomHeader);
 app.use('/api/auth', authRoutes);
 app.use('/api/kiosk', kioskRoutes);
 app.use('/api/manual-attendance', manualAttendanceRoutes);
+app.use('/api/students', studentRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/messages', messageRoutes);
 
