@@ -6,6 +6,7 @@ import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Kiosk from './pages/Kiosk.jsx';
 import Statistics from './pages/Statistics.jsx';
+import Students from './pages/Students.jsx';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route element={<ProtectedRoute roles={['admin', 'librarian']} />}>
             <Route path="/statistics" element={<Statistics />} />
+            <Route path="/students" element={<Students />} />
           </Route>
         </Route>
       </Route>

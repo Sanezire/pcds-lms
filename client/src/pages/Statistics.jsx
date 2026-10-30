@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useLiveReload, useNow } from '../live.js';
 import Analytics from '../components/Analytics.jsx';
-import StudentRecords from '../components/StudentRecords.jsx';
 import LibraryVisitTrends from '../components/LibraryVisitTrends.jsx';
 
 const EMPTY = {
@@ -372,7 +371,6 @@ function AttendanceLogs() {
 const VIEWS = [
   { id: 'statistics', label: 'Statistics', lead: 'Attendance logs from the RFID kiosk and manual entries.' },
   { id: 'analytics', label: 'Analytics', lead: 'Library visits over time, from the RFID kiosk and manual entries.' },
-  { id: 'students', label: 'Students', lead: 'Student records: add students one by one or import a CSV file.' },
 ];
 
 // The page title doubles as a switch: Statistics shows the attendance logs,
@@ -423,8 +421,6 @@ export default function Statistics() {
             <Analytics />
             <LibraryVisitTrends />
           </>
-        ) : view.id === 'students' ? (
-          <StudentRecords />
         ) : (
           <AttendanceLogs />
         )}
