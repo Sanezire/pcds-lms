@@ -1768,3 +1768,57 @@ body.swal2-toast-shown .pcds-kiosk-toast-container.swal2-container {
   gap: 2px;
   min-width: 0;
 }
+
+/* ---------- Library Visit Trends ---------- */
+.trends { display: grid; gap: 20px; }
+.trends-body { display: grid; gap: 14px; }
+.trends-heading { margin: 0; font-size: 1.05rem; }
+.trends-years { border: 0; margin: 0; padding: 0; min-width: 0; }
+.trends-years legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+.trends-years > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.year-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; cursor: pointer;
+  border: 1px solid var(--blue-300); border-radius: var(--radius); background: var(--white);
+  color: var(--blue-700); font-weight: 600;
+}
+.year-chip input { accent-color: var(--blue-600); width: 16px; height: 16px; margin: 0; }
+.year-chip.is-on { background: var(--blue-100); border-color: var(--blue-500); }
+.year-chip:focus-within { outline: 3px solid var(--blue-300); outline-offset: 2px; }
+.trends-type { min-width: 0 !important; display: grid; gap: 6px; }
+.trends-type > span { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--blue-300); border-radius: var(--radius); overflow: hidden; background: var(--white); }
+.seg-btn { appearance: none; border: 0; background: none; font: inherit; padding: 9px 16px; color: var(--blue-700); cursor: pointer; font-weight: 600; }
+.seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+.seg-btn.is-active { background: var(--blue-600); color: #fff; }
+.seg-btn:focus-visible { outline: 3px solid var(--blue-300); outline-offset: -3px; }
+
+.tchart { position: relative; width: 100%; }
+.tchart svg { display: block; outline: none; max-width: 100%; }
+.tchart svg:focus-visible { outline: 3px solid var(--blue-300); outline-offset: 2px; border-radius: 4px; }
+.tchart-grid { stroke: var(--line); stroke-width: 1; }
+.tchart-base { stroke: var(--muted); stroke-width: 1; }
+.tchart-tick { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tchart-hover { fill: var(--blue-100); opacity: 0.7; }
+.tchart-cursor { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.tchart-bar { fill: var(--blue-500); }
+.tchart-bar.is-active { fill: var(--blue-700); }
+.tchart-peak { fill: var(--ink); font-size: 12px; font-weight: 700; }
+.tchart-line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tchart-dot { fill: currentColor; stroke: var(--white); stroke-width: 2; }
+.tchart-tip {
+  position: absolute; top: 4px; transform: translateX(-50%); z-index: 2; pointer-events: none;
+  display: grid; gap: 3px; min-width: 120px; padding: 8px 10px; border-radius: 6px;
+  background: var(--ink); color: #fff; font-size: 0.8rem; box-shadow: 0 4px 14px rgba(20, 40, 60, 0.25);
+}
+.tchart-tip-title { opacity: 0.85; }
+.tchart-tip-row { display: flex; align-items: center; gap: 6px; }
+.tchart-tip-row i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.tchart-tip-row em { font-style: normal; opacity: 0.9; }
+.tchart-tip-row strong { font-size: 1.05rem; margin-left: auto; }
+.tchart-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; color: var(--ink); font-weight: 600; }
+.tchart-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.trends-table th.num, .trends-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.trends-table tfoot th, .trends-table tfoot td { border-top: 2px solid var(--line); font-weight: 700; padding: 12px 16px; background: var(--blue-50); }
+.trends-table tfoot th { text-align: left; color: var(--ink); font-size: 0.9375rem; }
+.trends-table { table-layout: auto; }
+@media (max-width: 600px) { .trends-type { width: 100%; } }

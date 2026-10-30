@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useLiveReload, useNow } from '../live.js';
 import Analytics from '../components/Analytics.jsx';
+import LibraryVisitTrends from '../components/LibraryVisitTrends.jsx';
 
 const EMPTY = {
   course: '',
@@ -415,7 +416,14 @@ export default function Statistics() {
       </header>
 
       <div id="stats-view" role="tabpanel" aria-labelledby={`tab-${view.id}`} className="stats">
-        {view.id === 'analytics' ? <Analytics /> : <AttendanceLogs />}
+        {view.id === 'analytics' ? (
+          <>
+            <Analytics />
+            <LibraryVisitTrends />
+          </>
+        ) : (
+          <AttendanceLogs />
+        )}
       </div>
     </div>
   );

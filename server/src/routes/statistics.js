@@ -270,4 +270,131 @@ router.get('/visits', async (req, res, next) => {
   }
 });
 
+// ---- Library visit trends ----
+// Daily, monthly and yearly visit counts, a comparison between years, and a
+// custom date range. Every number comes from VISIT_DAYS_SQL, so a student still
+// counts once per day.
+
+const MAX_COMPARE_YEARS = 4;
+
+const parseYear = (value, label = 'Year') => {
+  const y = Number(value);
+  if (!/^\d{4}$/.test(String(value)) || y < 2000 || y > 2100) throw httpError(400, `${label} is not valid.`);
+  return y;
+};
+
+const monthKeys = (year) => Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+
+async function countByMonth(fromDay, toDay) {
+  const rows = await query(
+    `SELECT DATE_FORMAT(d, '%Y-%m') AS k, COUNT(*) AS visits
+       FROM (${VISIT_DAYS_SQL}) x
+      WHERE d BETWEEN ? AND ?
+      GROUP BY k`,
+    [fromDay, toDay]
+  );
+  return new Map(rows.map((r) => [r.k, Number(r.visits)]));
+}
+
+router.get('/trends', async (req, res, next) => {
+  try {
+    const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
+    const thisYear = Number(today.slice(0, 4));
+    const thisMonth = today.slice(0, 7);
+    const q = req.query;
+    const report = ['daily', 'monthly', 'annual', 'compare', 'custom'].includes(q.report) ? q.report : null;
+    if (!report) throw httpError(400, 'Invalid report.');
+
+    // Years that have visits, so the pickers only offer years worth choosing.
+    const yearRows = await query(`SELECT DISTINCT YEAR(d) AS y FROM (${VISIT_DAYS_SQL}) x ORDER BY y`);
+    const years = [...new Set([...yearRows.map((r) => Number(r.y)), thisYear])].sort((a, b) => a - b);
+
+    const out = { report, today, years };
+
+    if (report === 'daily') {
+      const month = typeof q.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(q.month) ? q.month : thisMonth;
+      const first = `${month}-01`;
+      const last = fmt(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)));
+      const rows = await query(
+        `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
+           FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
+        [first, last]
+      );
+      const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
+      out.granularity = 'day';
+      out.label = month;
+      out.buckets = Array.from({ length: daysBetween(first, last) + 1 }, (_, i) => {
+        const key = addDays(first, i);
+        return { key, visits: perDay.get(key) || 0, future: key > today };
+      });
+    } else if (report === 'monthly') {
+      const year = q.year ? parseYear(q.year) : thisYear;
+      const counts = await countByMonth(`${year}-01-01`, `${year}-12-31`);
+      out.granularity = 'month';
+      out.label = String(year);
+      out.buckets = monthKeys(year).map((key) => ({ key, visits: counts.get(key) || 0, future: key > thisMonth }));
+    } else if (report === 'annual') {
+      const rows = await query(
+        `SELECT YEAR(d) AS y, COUNT(*) AS visits FROM (${VISIT_DAYS_SQL}) x GROUP BY y`
+      );
+      const perYear = new Map(rows.map((r) => [Number(r.y), Number(r.visits)]));
+      const firstYear = Math.min(years[0], thisYear);
+      out.granularity = 'year';
+      out.label = 'All years';
+      out.buckets = Array.from({ length: thisYear - firstYear + 1 }, (_, i) => {
+        const y = firstYear + i;
+        return { key: String(y), visits: perYear.get(y) || 0, future: false };
+      });
+    } else if (report === 'compare') {
+      const picked = [...new Set(String(q.years || '').split(',').filter(Boolean).map((y) => parseYear(y)))]
+        .sort((a, b) => a - b);
+      if (picked.length < 2) throw httpError(400, 'Choose at least two years to compare.');
+      if (picked.length > MAX_COMPARE_YEARS) throw httpError(400, `Compare up to ${MAX_COMPARE_YEARS} years at a time.`);
+      const counts = await countByMonth(`${picked[0]}-01-01`, `${picked[picked.length - 1]}-12-31`);
+      out.granularity = 'month';
+      out.label = picked.join(' vs ');
+      out.series = picked.map((year) => ({
+        year,
+        buckets: monthKeys(year).map((key) => ({ key, visits: counts.get(key) || 0, future: key > thisMonth })),
+      }));
+    } else {
+      const { from, to } = resolveRange({ ...q, range: 'custom' }, today);
+      const span = daysBetween(from, to) + 1;
+      out.from = from;
+      out.to = to;
+      if (span <= DAILY_BARS_UP_TO_DAYS) {
+        const rows = await query(
+          `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
+             FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
+          [from, to]
+        );
+        const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
+        out.granularity = 'day';
+        out.buckets = Array.from({ length: span }, (_, i) => {
+          const key = addDays(from, i);
+          return { key, visits: perDay.get(key) || 0, future: false };
+        });
+      } else {
+        const counts = await countByMonth(from, to);
+        out.granularity = 'month';
+        const keys = [];
+        for (let k = from.slice(0, 7); k <= to.slice(0, 7); ) {
+          keys.push(k);
+          const [y, m] = k.split('-').map(Number);
+          k = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+        }
+        // Months at the edge of the range only count the days inside it.
+        out.buckets = keys.map((key) => ({ key, visits: counts.get(key) || 0, future: false }));
+      }
+    }
+
+    const all = out.series ? out.series.flatMap((s) => s.buckets) : out.buckets;
+    out.total = all.reduce((n, b) => n + b.visits, 0);
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
