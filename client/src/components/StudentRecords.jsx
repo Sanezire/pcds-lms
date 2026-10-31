@@ -16,7 +16,7 @@ const GENDERS = [
   { value: 'female', label: 'Female' },
   { value: 'other', label: 'Other' },
 ];
-const YEARS = [1, 2, 3, 4, 5, 6];
+const YEARS = [1, 2, 3, 4];
 const EMPTY = { rfidNumber: '', studentId: '', fullName: '', course: '', gender: '', yearLevel: '' };
 const TEMPLATE =
   'rfid_number,student_id,full_name,course,gender,year_level\r\n' +
