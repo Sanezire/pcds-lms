@@ -12,7 +12,9 @@ const router = Router();
 // Same access as the kiosk screen: signed-in admins and librarians only.
 router.use(requireAuth, requireRole(...ATTENDANCE_ROLES));
 
-const COLUMNS = `id, student_id, student_name, course, gender, time_in, time_out`;
+const COLUMNS = `id, student_id, student_name, course, year_level, gender, time_in, time_out`;
+
+const yearText = (n) => (n ? `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'} Year` : 'no year level');
 
 // Dates come back from MySQL as UTC and are sent as ISO strings; the browser
 // shows them in the viewer's own time zone.
@@ -24,6 +26,7 @@ function toRecord(row) {
     studentId: row.student_id,
     name: row.student_name,
     course: row.course,
+    yearLevel: row.year_level === null ? null : Number(row.year_level),
     gender: row.gender,
     timeIn: iso(row.time_in),
     timeOut: iso(row.time_out),
@@ -42,7 +45,7 @@ router.get('/students', async (req, res, next) => {
     // "|" is the escape character, so a typed % or _ is matched literally.
     const like = `%${q.replace(/[|%_]/g, '|$&')}%`;
     const rows = await query(
-      `SELECT s.student_id, s.full_name, s.course, s.gender,
+      `SELECT s.student_id, s.full_name, s.course, s.year_level, s.gender,
               EXISTS (SELECT 1 FROM manual_attendance m
                        WHERE m.student_id = s.student_id AND m.time_out IS NULL) AS timed_in
          FROM students_data s
@@ -56,6 +59,7 @@ router.get('/students', async (req, res, next) => {
         studentId: r.student_id,
         name: r.full_name,
         course: r.course,
+        yearLevel: Number(r.year_level),
         gender: r.gender,
         timedIn: Boolean(r.timed_in),
       })),
@@ -92,9 +96,9 @@ router.post('/', async (req, res, next) => {
     try {
       result = await query(
         `INSERT INTO manual_attendance
-           (student_id, student_name, course, gender, time_in, recorded_by)
-         VALUES (?, ?, ?, ?, UTC_TIMESTAMP(), ?)`,
-        [values.studentId, values.name, values.course, values.gender, req.user.id]
+           (student_id, student_name, course, year_level, gender, time_in, recorded_by)
+         VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), ?)`,
+        [values.studentId, values.name, values.course, values.yearLevel, values.gender, req.user.id]
       );
     } catch (err) {
       // The unique key on active_student_id is what really enforces this, so
@@ -108,7 +112,7 @@ router.post('/', async (req, res, next) => {
     }
 
     publish('attendance');
-    await recordAudit(req, 'attendance.time_in', `Timed in ${values.name} (${values.studentId}), ${values.course}`);
+    await recordAudit(req, 'attendance.time_in', `Timed in ${values.name} (${values.studentId}), ${values.course}, ${yearText(values.yearLevel)}`);
     const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [result.insertId]);
     res.status(201).json({ record: toRecord(rows[0]) });
   } catch (err) {
@@ -155,9 +159,9 @@ router.patch('/:id', async (req, res, next) => {
     try {
       result = await query(
         `UPDATE manual_attendance
-            SET student_id = ?, student_name = ?, course = ?, gender = ?
+            SET student_id = ?, student_name = ?, course = ?, year_level = ?, gender = ?
           WHERE id = ?`,
-        [values.studentId, values.name, values.course, values.gender, id]
+        [values.studentId, values.name, values.course, values.yearLevel, values.gender, id]
       );
     } catch (err) {
       // Changing the ID of an open entry to one that is already timed in.
@@ -175,7 +179,7 @@ router.patch('/:id', async (req, res, next) => {
     await recordAudit(
       req,
       'attendance.edit',
-      `Edited the manual attendance entry of ${values.name} (${values.studentId}), ${values.course}, ${values.gender}`
+      `Edited the manual attendance entry of ${values.name} (${values.studentId}), ${values.course}, ${yearText(values.yearLevel)}, ${values.gender}`
     );
 
     res.json({ record: toRecord(rows[0]) });

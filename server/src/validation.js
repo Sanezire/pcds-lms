@@ -101,6 +101,8 @@ export function validateManualAttendance(body = {}) {
   const studentId = normalizeMemberId(body.studentId);
   const course = asString(body.course).trim().replace(/\s+/g, ' ');
   const gender = asString(body.gender).trim().toLowerCase();
+  const yearText = String(body.yearLevel ?? '').trim();
+  const yearLevel = /^[1-4]$/.test(yearText) ? Number(yearText) : null;
   const errors = {};
 
   if (name.length < 2 || name.length > 100) errors.name = 'Enter the student’s full name (2 to 100 characters).';
@@ -112,9 +114,11 @@ export function validateManualAttendance(body = {}) {
 
   if (course.length < 2 || course.length > 100) errors.course = 'Enter the course (2 to 100 characters).';
 
+  if (yearLevel === null) errors.yearLevel = 'Choose a year level.';
+
   if (!GENDERS.includes(gender)) errors.gender = 'Choose a gender.';
 
-  return { errors, values: { name, studentId, course, gender } };
+  return { errors, values: { name, studentId, course, gender, yearLevel } };
 }
 
 export const MESSAGE_MAX = 500;

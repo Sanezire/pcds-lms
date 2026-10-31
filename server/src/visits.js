@@ -5,8 +5,8 @@
 //  - Manual rows already hold Time In and Time Out together.
 // Taps by staff point at a user account and taps by students at a student record;
 // either way the name and ID shown come from whichever one the tap belongs to.
-// Course and gender of an RFID visit come from the student's record; taps by staff
-// accounts have none.
+// Course, gender and year level of an RFID visit come from the student's record;
+// taps by staff accounts have none.
 export const VISITS_SQL = `
   SELECT 'rfid' AS attendance_type,
          t.id AS source_id,
@@ -14,6 +14,7 @@ export const VISITS_SQL = `
          COALESCE(s.student_id, u.member_id) AS student_id,
          CAST(s.course AS CHAR(100)) AS course,
          CAST(s.gender AS CHAR(10)) AS gender,
+         CAST(s.year_level AS UNSIGNED) AS year_level,
          t.recorded_at AS time_in,
          CASE WHEN t.next_action = 'out' THEN t.next_at END AS time_out
     FROM (
@@ -27,6 +28,6 @@ export const VISITS_SQL = `
    WHERE t.action = 'in'
   UNION ALL
   SELECT 'manual', m.id, m.student_name, m.student_id,
-         CAST(m.course AS CHAR(100)), CAST(m.gender AS CHAR(10)), m.time_in, m.time_out
+         CAST(m.course AS CHAR(100)), CAST(m.gender AS CHAR(10)), CAST(m.year_level AS UNSIGNED), m.time_in, m.time_out
     FROM manual_attendance m
 `;

@@ -91,4 +91,21 @@ export async function ensureSchema() {
   if (moved.affectedRows) {
     console.log(`Moved ${moved.affectedRows} attendance records from student accounts to student records.`);
   }
+
+  // Manual attendance entries record the student's year level too. Entries made
+  // before this existed take it from the matching student record when there is
+  // one; the rest stay blank until someone edits them.
+  const hasYear = await query(
+    `SELECT COLUMN_NAME FROM information_schema.columns
+      WHERE table_schema = DATABASE() AND table_name = 'manual_attendance' AND column_name = 'year_level'`
+  );
+  if (!hasYear.length) {
+    await query(`ALTER TABLE manual_attendance ADD COLUMN year_level TINYINT UNSIGNED NULL AFTER course`);
+    const filled = await query(
+      `UPDATE manual_attendance m JOIN students_data s ON s.student_id = m.student_id
+          SET m.year_level = s.year_level
+        WHERE m.year_level IS NULL`
+    );
+    console.log(`Manual attendance now has a year level (filled in ${filled.affectedRows} existing entries).`);
+  }
 }

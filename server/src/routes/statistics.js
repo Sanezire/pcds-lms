@@ -484,8 +484,8 @@ router.get('/trends', async (req, res, next) => {
 // ---- Visits by academic program and year level ----
 // Every visit is one student on one school day (same rule as everywhere else).
 // The program and year level come from the student's record in students_data;
-// for a manual entry from a student without a record, the course typed in the
-// entry is used and the year level is unknown. Visits by accounts with no
+// for a manual entry from a student without a record, the course and year level
+// typed in the entry are used (old entries without a year level show as not recorded). Visits by accounts with no
 // program at all (staff, for example) are not student visits and are left out.
 
 const MAX_PROGRAM_RANGE_DAYS = 3660;
@@ -515,11 +515,12 @@ async function resolveProgramRange(q, today) {
 // One row per student per day, with the program the student belongs to.
 const PROGRAM_VISITS_SQL = `
   SELECT COALESCE(NULLIF(TRIM(sd.course), ''), NULLIF(TRIM(x.manual_course), '')) AS program,
-         sd.year_level AS year_level
+         COALESCE(sd.year_level, x.manual_year) AS year_level
     FROM (
       SELECT student_id,
              DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d,
-             MAX(course) AS manual_course
+             MAX(course) AS manual_course,
+             MAX(year_level) AS manual_year
         FROM (${VISITS_SQL}) v
        GROUP BY student_id, d
     ) x
@@ -547,7 +548,9 @@ router.get('/program-year', async (req, res, next) => {
           ORDER BY program, year_level`,
         yearLevel ? [from, to, yearLevel] : [from, to]
       ),
-      query('SELECT DISTINCT year_level FROM students_data ORDER BY year_level'),
+      query(
+        'SELECT year_level FROM students_data UNION SELECT year_level FROM manual_attendance WHERE year_level IS NOT NULL ORDER BY year_level'
+      ),
       query(`SELECT COUNT(*) AS n FROM (${PROGRAM_VISITS_SQL}) p WHERE program IS NULL`, [from, to]),
     ]);
 

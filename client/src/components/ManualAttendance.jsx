@@ -6,8 +6,9 @@ import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
 import { confirmDelete } from '../confirm.js';
 import { showSuccessToast } from '../toast.js';
+import { YEAR_LEVELS, yearLabel } from '../yearLevels.js';
 
-const EMPTY = { name: '', studentId: '', course: '', gender: '' };
+const EMPTY = { name: '', studentId: '', course: '', yearLevel: '', gender: '' };
 // Suggested in the Course box. Staff can still type any other course.
 const COURSES = [
   'BS Nursing',
@@ -38,6 +39,7 @@ function validate(v) {
   else if (id.length < 3 || !/^[A-Za-z0-9][A-Za-z0-9_\-/]*$/.test(id))
     e.studentId = 'ID must be at least 3 characters: letters, numbers, hyphens, underscores or slashes.';
   if (v.course.trim().length < 2) e.course = 'Enter the course.';
+  if (!v.yearLevel) e.yearLevel = 'Choose a year level.';
   if (!v.gender) e.gender = 'Choose a gender.';
   return e;
 }
@@ -69,7 +71,15 @@ function SelectField({ label, error, children, ...props }) {
 
 function NewEntryForm({ record, onSaved, onClose }) {
   const [values, setValues] = useState(
-    record ? { name: record.name, studentId: record.studentId, course: record.course, gender: record.gender } : EMPTY
+    record
+      ? {
+          name: record.name,
+          studentId: record.studentId,
+          course: record.course,
+          yearLevel: record.yearLevel ? String(record.yearLevel) : '',
+          gender: record.gender,
+        }
+      : EMPTY
   );
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
@@ -82,7 +92,13 @@ function NewEntryForm({ record, onSaved, onClose }) {
 
   // Fill the form from a student record. The fields stay editable.
   function fillFrom(student) {
-    setValues({ name: student.name, studentId: student.studentId, course: student.course, gender: student.gender });
+    setValues({
+      name: student.name,
+      studentId: student.studentId,
+      course: student.course,
+      yearLevel: student.yearLevel ? String(student.yearLevel) : '',
+      gender: student.gender,
+    });
     setErrors({});
     setFormError('');
   }
@@ -144,6 +160,14 @@ function NewEntryForm({ record, onSaved, onClose }) {
           <option key={c} value={c} />
         ))}
       </datalist>
+      <SelectField label="Year level" name="yearLevel" value={values.yearLevel} onChange={set('yearLevel')} error={errors.yearLevel}>
+        <option value="">Select year level</option>
+        {YEAR_LEVELS.map((y) => (
+          <option key={y} value={y}>
+            {yearLabel(y)}
+          </option>
+        ))}
+      </SelectField>
       <SelectField label="Gender" name="gender" value={values.gender} onChange={set('gender')} error={errors.gender}>
         <option value="">Select gender</option>
         {GENDERS.map((g) => (
@@ -235,7 +259,7 @@ function StudentSearch({ onPick }) {
                 <span className="student-result-main">
                   <span className="record-name">{s.name}</span>
                   <span className="record-sub">
-                    {s.studentId} · {s.course}
+                    {s.studentId} · {s.course} · {yearLabel(s.yearLevel)}
                   </span>
                 </span>
                 {s.timedIn && <span className="status status-in">Timed in</span>}
@@ -255,6 +279,7 @@ function RecordButton({ record: r, onClick }) {
         <span className="record-name">{r.name}</span>
         <span className="record-sub">
           {r.studentId} · {r.course}
+          {r.yearLevel ? ` · ${yearLabel(r.yearLevel)}` : ''}
         </span>
       </span>
       <span className="record-times">
@@ -285,8 +310,10 @@ function AllRecords({ records, busyId, onSelect, onEdit, onDelete, onClose }) {
   const searchId = useId();
   const courseId = useId();
   const genderId = useId();
+  const yearId = useId();
   const [search, setSearch] = useState('');
   const [course, setCourse] = useState('');
+  const [year, setYear] = useState('');
   const [gender, setGender] = useState('');
 
   const courses = useMemo(() => [...new Set(records.map((r) => r.course))].sort((a, b) => a.localeCompare(b)), [records]);
@@ -295,14 +322,16 @@ function AllRecords({ records, busyId, onSelect, onEdit, onDelete, onClose }) {
   const filtered = records.filter(
     (r) =>
       (!course || r.course === course) &&
+      (!year || String(r.yearLevel) === year) &&
       (!gender || r.gender === gender) &&
       (!term || r.name.toLowerCase().includes(term) || r.studentId.toLowerCase().includes(term))
   );
-  const filtering = Boolean(term || course || gender);
+  const filtering = Boolean(term || course || year || gender);
 
   function clear() {
     setSearch('');
     setCourse('');
+    setYear('');
     setGender('');
   }
 
@@ -331,6 +360,19 @@ function AllRecords({ records, busyId, onSelect, onEdit, onDelete, onClose }) {
               {courses.map((c) => (
                 <option key={c} value={c}>
                   {c}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor={yearId}>Year level</label>
+          <div className="input-wrap">
+            <select id={yearId} className="field-select" value={year} onChange={(e) => setYear(e.target.value)}>
+              <option value="">All year levels</option>
+              {YEAR_LEVELS.map((y) => (
+                <option key={y} value={y}>
+                  {yearLabel(y)}
                 </option>
               ))}
             </select>
@@ -424,6 +466,10 @@ function RecordDetails({ record, onTimedOut, onClose }) {
         <div>
           <dt>Course</dt>
           <dd>{record.course}</dd>
+        </div>
+        <div>
+          <dt>Year level</dt>
+          <dd>{record.yearLevel ? yearLabel(record.yearLevel) : 'Not recorded'}</dd>
         </div>
         <div>
           <dt>Gender</dt>

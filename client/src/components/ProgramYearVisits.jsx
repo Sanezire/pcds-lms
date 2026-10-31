@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
+import { yearLabel } from '../yearLevels.js';
 
 const PERIODS = [
   { value: 'all', label: 'All time' },
@@ -17,12 +18,6 @@ const dayMedium = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', time
 const dateOf = (key) => new Date(`${key}T00:00:00Z`);
 const visitsText = (n) => `${number.format(n)} ${n === 1 ? 'visit' : 'visits'}`;
 const percent = (part, whole) => (whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '0.0%');
-
-export const yearLabel = (level) => {
-  if (level === null) return 'Year not recorded';
-  const suffix = level === 1 ? 'st' : level === 2 ? 'nd' : level === 3 ? 'rd' : 'th';
-  return `${level}${suffix} Year`;
-};
 
 // Programs and year levels as totals, from the cells the server counted.
 // Everything on screen (table, charts, tiles) comes from this one shape, so

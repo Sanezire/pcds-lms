@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS manual_attendance (
   student_id        VARCHAR(32)     NOT NULL,
   student_name      VARCHAR(100)    NOT NULL,
   course            VARCHAR(100)    NOT NULL,
+  year_level        TINYINT UNSIGNED NULL,
   gender            ENUM('male', 'female', 'other') NOT NULL,
   time_in           DATETIME        NOT NULL,
   time_out          DATETIME        NULL,
@@ -97,6 +98,7 @@ CREATE TABLE IF NOT EXISTS manual_attendance (
   UNIQUE KEY uq_manual_attendance_active (active_student_id),
   KEY idx_manual_attendance_time_in (time_in),
   KEY idx_manual_attendance_student (student_id, time_in),
+  CONSTRAINT chk_manual_attendance_year CHECK (year_level IS NULL OR year_level BETWEEN 1 AND 6),
   CONSTRAINT fk_manual_attendance_user FOREIGN KEY (recorded_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
