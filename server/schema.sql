@@ -38,17 +38,42 @@ CREATE TABLE IF NOT EXISTS sessions (
   CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Library attendance taps. One row per Time In or Time Out.
+-- Student records used by the kiosk. A card tap sends the RFID number, which is
+-- looked up here to find the student. RFID numbers are hexadecimal (uppercase),
+-- and student IDs look like 2025-1042-3 (YYYY-XXXX-X).
+CREATE TABLE IF NOT EXISTS students_data (
+  id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  rfid_number VARCHAR(32)      NOT NULL,
+  student_id  VARCHAR(11)      NOT NULL,
+  full_name   VARCHAR(100)     NOT NULL,
+  course      VARCHAR(100)     NOT NULL,
+  gender      ENUM('male', 'female', 'other') NOT NULL,
+  year_level  TINYINT UNSIGNED NOT NULL,
+  created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_students_data_rfid (rfid_number),
+  UNIQUE KEY uq_students_data_student (student_id),
+  CONSTRAINT chk_students_data_rfid CHECK (rfid_number REGEXP '^[0-9A-Fa-f]+$'),
+  CONSTRAINT chk_students_data_student CHECK (student_id REGEXP '^[0-9]{4}-[0-9]{4}-[0-9]$'),
+  CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Library attendance taps, one row per Time In or Time Out. Staff taps point at a user account (user_id); student taps
+-- point at the student record (student_data_id). Exactly one of the two is set.
 CREATE TABLE IF NOT EXISTS attendance (
   id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id        BIGINT UNSIGNED NOT NULL,
+  user_id        BIGINT UNSIGNED NULL,
+  student_data_id BIGINT UNSIGNED NULL,
   action         ENUM('in', 'out') NOT NULL,
   recorded_at    DATETIME        NOT NULL,
   kiosk_user_id  BIGINT UNSIGNED NULL,
   PRIMARY KEY (id),
   KEY idx_attendance_user_time (user_id, recorded_at),
+  KEY idx_attendance_student_time (student_data_id, recorded_at),
   KEY idx_attendance_time (recorded_at),
   CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_attendance_student FOREIGN KEY (student_data_id) REFERENCES students_data (id) ON DELETE RESTRICT,
   CONSTRAINT fk_attendance_kiosk FOREIGN KEY (kiosk_user_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -111,27 +136,6 @@ CREATE TABLE IF NOT EXISTS kiosk_pinned (
   created_by  BIGINT UNSIGNED  NULL,
   updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Student records used by the kiosk. A card tap sends the RFID number, which is
--- looked up here to find the student. RFID numbers are hexadecimal (uppercase),
--- and student IDs look like 2025-1042-3 (YYYY-XXXX-X).
-CREATE TABLE IF NOT EXISTS students_data (
-  id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  rfid_number VARCHAR(32)      NOT NULL,
-  student_id  VARCHAR(11)      NOT NULL,
-  full_name   VARCHAR(100)     NOT NULL,
-  course      VARCHAR(100)     NOT NULL,
-  gender      ENUM('male', 'female', 'other') NOT NULL,
-  year_level  TINYINT UNSIGNED NOT NULL,
-  created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_students_data_rfid (rfid_number),
-  UNIQUE KEY uq_students_data_student (student_id),
-  CONSTRAINT chk_students_data_rfid CHECK (rfid_number REGEXP '^[0-9A-Fa-f]+$'),
-  CONSTRAINT chk_students_data_student CHECK (student_id REGEXP '^[0-9]{4}-[0-9]{4}-[0-9]$'),
-  CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Audit log: one row per action by an admin, student assistant or super admin.

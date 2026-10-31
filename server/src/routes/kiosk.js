@@ -1,5 +1,3 @@
-import { randomBytes } from 'node:crypto';
-import bcrypt from 'bcrypt';
 import { Router } from 'express';
 import { query } from '../db.js';
 import { config } from '../config.js';
@@ -8,6 +6,10 @@ import { requireKioskKey } from '../middleware/kioskKey.js';
 import { kioskScanLimiter } from '../middleware/rateLimit.js';
 import { publish } from '../events.js';
 import { readPinned } from './messages.js';
+import { ensureStudentsTable } from '../migrate.js';
+
+// Other routes import this from here.
+export { ensureStudentsTable };
 
 const router = Router();
 
@@ -26,74 +28,27 @@ function startOfLocalDayUtc(nowMs) {
   return new Date(Math.floor((nowMs + offsetMs) / DAY_MS) * DAY_MS - offsetMs);
 }
 
-// The students table is created on first use, so a database set up before it
-// existed keeps working (an unknown card then simply fails like any other).
-let studentsTableReady = null;
-export const ensureStudentsTable = () => {
-  if (!studentsTableReady) {
-    studentsTableReady = query(
-      `CREATE TABLE IF NOT EXISTS students_data (
-         id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
-         rfid_number VARCHAR(32)      NOT NULL,
-         student_id  VARCHAR(11)      NOT NULL,
-         full_name   VARCHAR(100)     NOT NULL,
-         course      VARCHAR(100)     NOT NULL,
-         gender      ENUM('male', 'female', 'other') NOT NULL,
-         year_level  TINYINT UNSIGNED NOT NULL,
-         created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-         updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-         PRIMARY KEY (id),
-         UNIQUE KEY uq_students_data_rfid (rfid_number),
-         UNIQUE KEY uq_students_data_student (student_id),
-         CONSTRAINT chk_students_data_rfid CHECK (rfid_number REGEXP '^[0-9A-Fa-f]+$'),
-         CONSTRAINT chk_students_data_student CHECK (student_id REGEXP '^[0-9]{4}-[0-9]{4}-[0-9]$'),
-         CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
-       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
-    ).catch((err) => {
-      studentsTableReady = null;
-      throw err;
-    });
-  }
-  return studentsTableReady;
-};
-
-// Finds the account a scanned value belongs to.
-//  1. An RFID number from students_data: the matching account (named by the
-//     student ID) is used, and created the first time that card is tapped.
-//  2. Otherwise the value is a member ID (for example staff such as the PCDS admin).
-async function findAccount(scanned) {
+// Finds who a scanned value belongs to.
+//  1. An RFID number from students_data: that student. Students have no sign-in
+//     account, so their taps are stored against the student record itself.
+//  2. Otherwise a member ID of an account (for example the PCDS admin). A student
+//     who has a record cannot be scanned by typing their ID, only by their card,
+//     so one student never ends up with two separate attendance histories.
+async function findSubject(scanned) {
   await ensureStudentsTable();
-  const cards = await query(
-    'SELECT student_id, full_name FROM students_data WHERE rfid_number = ? LIMIT 1',
-    [scanned.toUpperCase()]
-  );
-  const card = cards[0];
+  const cards = await query('SELECT id, student_id FROM students_data WHERE rfid_number = ? LIMIT 1', [
+    scanned.toUpperCase(),
+  ]);
+  if (cards[0]) return { column: 'student_data_id', id: cards[0].id, label: cards[0].student_id };
 
-  if (card) {
-    const find = () =>
-      query(`SELECT id, member_id FROM users WHERE member_id = ? AND status = 'active' LIMIT 1`, [card.student_id]);
-    let rows = await find();
-    if (!rows[0]) {
-      // No account yet. Students never sign in, so it gets an unusable random
-      // password; INSERT IGNORE keeps two simultaneous first taps from clashing.
-      const existing = await query('SELECT id FROM users WHERE member_id = ? LIMIT 1', [card.student_id]);
-      if (existing[0]) return null; // an account exists but is not active
-      const hash = await bcrypt.hash(randomBytes(32).toString('hex'), config.bcryptRounds);
-      await query(
-        `INSERT IGNORE INTO users (full_name, email, member_id, password_hash, role, status)
-         VALUES (?, ?, ?, ?, 'student', 'active')`,
-        [card.full_name, `${card.student_id.toLowerCase()}@students.pcds.local`, card.student_id, hash]
-      );
-      rows = await find();
-    }
-    return rows[0] || null;
-  }
-
-  const found = await query(
-    `SELECT id, member_id FROM users WHERE member_id = ? AND status = 'active' LIMIT 1`,
+  const accounts = await query(
+    `SELECT u.id, u.member_id FROM users u
+      WHERE u.member_id = ? AND u.status = 'active'
+        AND NOT EXISTS (SELECT 1 FROM students_data s WHERE s.student_id = u.member_id)
+      LIMIT 1`,
     [scanned]
   );
-  return found[0] || null;
+  return accounts[0] ? { column: 'user_id', id: accounts[0].id, label: accounts[0].member_id } : null;
 }
 
 // Records one card tap. The first tap of the day is Time In, the next is
@@ -104,13 +59,13 @@ router.post('/scan', kioskScanLimiter, async (req, res, next) => {
     const studentId = typeof req.body?.studentId === 'string' ? req.body.studentId.trim() : '';
     if (!ID_PATTERN.test(studentId)) throw httpError(400, 'Scan failed.');
 
-    const student = await findAccount(studentId);
+    const student = await findSubject(studentId);
     if (!student) throw httpError(404, 'Scan failed.');
 
     const now = new Date();
     const lastRows = await query(
       `SELECT action, recorded_at FROM attendance
-        WHERE user_id = ? AND recorded_at >= ?
+        WHERE ${student.column} = ? AND recorded_at >= ?
         ORDER BY recorded_at DESC, id DESC
         LIMIT 1`,
       [student.id, startOfLocalDayUtc(now.getTime())]
@@ -124,7 +79,7 @@ router.post('/scan', kioskScanLimiter, async (req, res, next) => {
     if (last && now.getTime() - new Date(last.recorded_at).getTime() < DUPLICATE_WINDOW_MS) {
       return res.json({
         attendance: {
-          studentId: student.member_id,
+          studentId: student.label,
           action: last.action,
           recordedAt: new Date(last.recorded_at).toISOString(),
         },
@@ -133,7 +88,7 @@ router.post('/scan', kioskScanLimiter, async (req, res, next) => {
 
     const action = last && last.action === 'in' ? 'out' : 'in';
     await query(
-      `INSERT INTO attendance (user_id, action, recorded_at) VALUES (?, ?, ?)`,
+      `INSERT INTO attendance (${student.column}, action, recorded_at) VALUES (?, ?, ?)`,
       [student.id, action, now]
     );
     publish('attendance');
@@ -143,11 +98,11 @@ router.post('/scan', kioskScanLimiter, async (req, res, next) => {
     // Time Out message on Time Out. Repeat taps above do not include it.
     const rules = await query(
       'SELECT message, message_out FROM message_rules WHERE student_id = ? AND enabled = 1 LIMIT 1',
-      [String(student.member_id).toUpperCase()]
+      [String(student.label).toUpperCase()]
     );
 
     res.json({
-      attendance: { studentId: student.member_id, action, recordedAt: now.toISOString() },
+      attendance: { studentId: student.label, action, recordedAt: now.toISOString() },
       message: (rules[0] && (action === 'in' ? rules[0].message : rules[0].message_out)) || null,
     });
   } catch (err) {
