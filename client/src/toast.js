@@ -25,10 +25,16 @@ const toast = Swal.mixin({
 // message replaces that line. All plain text, so a message can never inject markup.
 const kioskToast = Swal.mixin({
   toast: true,
-  position: 'top-end',
+  position: 'top',
   showConfirmButton: false,
   timer: 5000,
   iconColor: '#17653f',
+  // Centered at the top, just under the kiosk header (whose height changes with the screen size).
+  didOpen: (el) => {
+    const header = document.querySelector('.kiosk-top');
+    const below = header ? header.getBoundingClientRect().bottom : 0;
+    if (el.parentElement) el.parentElement.style.top = `${Math.max(below, 0) + 12}px`;
+  },
   customClass: {
     container: 'pcds-kiosk-toast-container',
     popup: 'pcds-swal-toast pcds-kiosk-toast',
