@@ -142,7 +142,7 @@ export function validateMessageText(value) {
 // IDs are limited to what the kiosk reader can actually scan.
 export function validateRuleId(value) {
   const studentId = normalizeMemberId(value);
-  if (!studentId) return { error: 'Enter a student ID.', studentId };
+  if (!studentId) return { error: 'Enter an ID.', studentId };
   if (!SCANNABLE_ID_RE.test(studentId)) {
     return { error: 'ID must be 3 to 32 characters: letters, numbers, hyphens or underscores.', studentId };
   }

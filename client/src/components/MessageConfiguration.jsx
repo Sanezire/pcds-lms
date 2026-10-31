@@ -378,7 +378,7 @@ function IdMessages() {
     e.preventDefault();
     setFormError('');
     const found = {};
-    if (!editing && !studentId.trim()) found.studentId = 'Enter a student ID.';
+    if (!editing && !studentId.trim()) found.studentId = 'Enter an ID.';
     if (!message.trim() && !messageOut.trim()) found.message = 'Enter a Time In message, a Time Out message, or both.';
     setErrors(found);
     if (Object.keys(found).length) return;
@@ -457,7 +457,7 @@ function IdMessages() {
               </div>
             )}
             <Field
-              label="Student ID"
+              label="ID"
               name="ruleStudentId"
               autoComplete="off"
               value={studentId}
