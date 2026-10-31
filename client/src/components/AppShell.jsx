@@ -25,8 +25,8 @@ export default function AppShell() {
           <NavLink to="/dashboard">Dashboard</NavLink>
           {canManage && <NavLink to="/statistics">Statistics</NavLink>}
           {canManage && <NavLink to="/students">Students</NavLink>}
-          {canManage && <NavLink to="/kiosk">Kiosk</NavLink>}
           {isSuperAdmin && <NavLink to="/audit-logs">Audit Logs</NavLink>}
+          {canManage && <NavLink to="/kiosk">Kiosk</NavLink>}
         </nav>
         <div className="topbar-user">
           <span className="user-name">{user.fullName}</span>
