@@ -100,7 +100,9 @@ router.get('/attendance', async (req, res, next) => {
 
     const [counts, courses] = await Promise.all([
       query(`SELECT COUNT(*) AS total FROM (${WITH_DURATION}) r ${clause}`, params),
-      query(`SELECT DISTINCT course FROM manual_attendance ORDER BY course`),
+      query(
+        `SELECT course FROM manual_attendance UNION SELECT course FROM students_data ORDER BY course`
+      ),
     ]);
 
     const total = Number(counts[0].total);

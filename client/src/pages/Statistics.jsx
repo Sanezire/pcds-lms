@@ -238,7 +238,7 @@ function AttendanceLogs() {
 
         {hidesRfid && (
           <p className="table-note">
-            RFID records do not store a course or gender, so they are left out while those filters are on.
+            RFID visits by accounts without a student record have no course or gender, so they are left out while those filters are on.
           </p>
         )}
 

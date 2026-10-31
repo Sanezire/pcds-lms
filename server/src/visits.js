@@ -5,14 +5,15 @@
 //  - Manual rows already hold Time In and Time Out together.
 // Taps by staff point at a user account and taps by students at a student record;
 // either way the name and ID shown come from whichever one the tap belongs to.
-// RFID rows carry no course or gender, as before.
+// Course and gender of an RFID visit come from the student's record; taps by staff
+// accounts have none.
 export const VISITS_SQL = `
   SELECT 'rfid' AS attendance_type,
          t.id AS source_id,
          COALESCE(s.full_name, u.full_name) AS student_name,
          COALESCE(s.student_id, u.member_id) AS student_id,
-         CAST(NULL AS CHAR(100)) AS course,
-         CAST(NULL AS CHAR(10)) AS gender,
+         CAST(s.course AS CHAR(100)) AS course,
+         CAST(s.gender AS CHAR(10)) AS gender,
          t.recorded_at AS time_in,
          CASE WHEN t.next_action = 'out' THEN t.next_at END AS time_out
     FROM (
