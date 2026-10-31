@@ -315,6 +315,30 @@ a:hover {
 .field.has-error input:focus {
   box-shadow: 0 0 0 3px #f3c9c6;
 }
+.input-wrap input[readonly] {
+  background: var(--blue-50);
+  color: var(--muted);
+  cursor: default;
+}
+.new-id {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 20px;
+  background: var(--blue-50);
+  border: 1px solid var(--blue-300);
+  border-radius: var(--radius);
+}
+.new-id-label {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.new-id-value {
+  font-size: 2rem;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
 .hint {
   margin-top: 6px;
   font-size: 0.8125rem;

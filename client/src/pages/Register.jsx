@@ -4,11 +4,11 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
 import { Field } from '../components/Field.jsx';
 import { validateRegister } from '../validation.js';
+import { showSuccessToast } from '../toast.js';
 
 const EMPTY = {
   fullName: '',
   email: '',
-  memberId: '',
   password: '',
   confirmPassword: '',
   role: '',
@@ -20,6 +20,10 @@ const ROLE_OPTIONS = [
   { value: 'student_assistant', label: 'SA (Student Assistant)' },
 ];
 
+// The ID is assigned by the server from the role; this only shows its shape.
+const ID_SHAPE = { admin: 'AD-####', student_assistant: 'SA-####' };
+const ROLE_NAME = { admin: 'Admin', student_assistant: 'Student Assistant' };
+
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -28,6 +32,7 @@ export default function Register() {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [created, setCreated] = useState(null); // { memberId, role } once the account exists
 
   const set = (name) => (e) => {
     setValues((v) => ({ ...v, [name]: e.target.value }));
@@ -54,16 +59,43 @@ export default function Register() {
 
     setSubmitting(true);
     try {
-      await register(values);
-      navigate('/login', {
-        replace: true,
-        state: { notice: `${values.role === 'admin' ? 'Admin' : 'Student Assistant'} account created. Sign in to continue.` },
-      });
+      const result = await register(values);
+      setCreated({ memberId: result.memberId, role: values.role });
+      setSubmitting(false);
     } catch (err) {
       setFormError(err.message);
       setErrors(err.fields || {});
       setSubmitting(false);
     }
+  }
+
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(created.memberId);
+      showSuccessToast('ID copied');
+    } catch {
+      /* clipboard blocked: the ID is on screen to copy by hand */
+    }
+  }
+
+  if (created) {
+    return (
+      <AuthLayout
+        title="Account created"
+        subtitle={`Your ${ROLE_NAME[created.role]} account is ready. Use this ID, or your email, to sign in.`}
+      >
+        <div className="new-id" role="status">
+          <span className="new-id-label">Your ID</span>
+          <strong className="new-id-value">{created.memberId}</strong>
+          <button type="button" className="btn btn-quiet" onClick={copyId}>
+            Copy ID
+          </button>
+        </div>
+        <button className="btn btn-primary btn-block" type="button" onClick={() => navigate('/login', { replace: true })}>
+          Continue to sign in
+        </button>
+      </AuthLayout>
+    );
   }
 
   return (
@@ -130,10 +162,12 @@ export default function Register() {
         <Field
           label="ID"
           name="memberId"
+          readOnly
+          tabIndex={-1}
           autoComplete="off"
-          value={values.memberId}
-          onChange={set('memberId')}
-          error={errors.memberId}
+          value={ID_SHAPE[values.role] || ''}
+          placeholder="Choose a role first"
+          hint="Assigned automatically when the account is created, based on the role."
         />
         <Field
           label="Password"

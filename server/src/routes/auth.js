@@ -28,6 +28,20 @@ const router = Router();
 
 const ROLE_LABEL = { admin: 'Administrator', student_assistant: 'Student Assistant' };
 
+// Account IDs are assigned from the role: AD-0001, AD-0002 ... for admins and
+// SA-0001, SA-0002 ... for student assistants. The prefixes are fixed here, so
+// they are safe to place in the SQL below.
+const ID_PREFIX = { admin: 'AD', student_assistant: 'SA' };
+
+async function nextMemberId(role) {
+  const prefix = ID_PREFIX[role];
+  const rows = await query(
+    `SELECT MAX(CAST(SUBSTRING(member_id, ${prefix.length + 2}) AS UNSIGNED)) AS last
+       FROM users WHERE member_id REGEXP '^${prefix}-[0-9]+$'`
+  );
+  return `${prefix}-${String(Number(rows[0]?.last || 0) + 1).padStart(4, '0')}`;
+}
+
 // Compare hashes of both values so the check takes the same time whatever the input.
 function keyMatches(provided, expected) {
   const a = crypto.createHash('sha256').update(provided).digest();
@@ -41,14 +55,14 @@ const DUMMY_HASH = bcrypt.hashSync('pcds-lms-dummy-password', config.bcryptRound
 
 router.post('/register', registerLimiter, async (req, res, next) => {
   try {
-    const { errors, values } = validateRegistration(req.body);
+    const { errors, values } = validateRegistration(req.body, { autoId: true });
     if (Object.keys(errors).length) {
       throw httpError(400, 'Check the highlighted fields and try again.', errors);
     }
 
     // Only people holding the server-side registration key can create accounts.
     // This runs before any database lookup so it cannot be used to probe for
-    // existing emails or IDs.
+    // existing emails.
     if (!config.adminRegistrationKey) {
       throw httpError(503, 'Registration is turned off. Set ADMIN_REGISTRATION_KEY on the server to enable it.');
     }
@@ -58,47 +72,47 @@ router.post('/register', registerLimiter, async (req, res, next) => {
       });
     }
 
-    const existing = await query(
-      'SELECT email, member_id FROM users WHERE email = ? OR member_id = ? LIMIT 2',
-      [values.email, values.memberId]
-    );
-    const conflicts = {};
-    for (const row of existing) {
-      if (row.email === values.email) conflicts.email = 'An account with this email already exists.';
-      if (row.member_id === values.memberId) conflicts.memberId = 'An account with this ID already exists.';
-    }
-    if (Object.keys(conflicts).length) {
-      throw httpError(409, 'That email or ID is already registered.', conflicts);
+    const existing = await query('SELECT email FROM users WHERE email = ? LIMIT 1', [values.email]);
+    if (existing.length) {
+      throw httpError(409, 'That email is already registered.', { email: 'An account with this email already exists.' });
     }
 
     const passwordHash = await bcrypt.hash(values.password, config.bcryptRounds);
 
-    try {
-      // The role is limited to the registerable ones (validated above), never a
-      // super admin. Status is fixed server-side.
-      const created = await query(
-        `INSERT INTO users (full_name, email, member_id, password_hash, role, status)
-         VALUES (?, ?, ?, ?, ?, 'active')`,
-        [values.fullName, values.email, values.memberId, passwordHash, values.role]
-      );
-      await recordAudit(
-        req,
-        'account.register',
-        `Registered ${values.role === 'admin' ? 'an' : 'a'} ${ROLE_LABEL[values.role]} account`,
-        { id: created.insertId, full_name: values.fullName, member_id: values.memberId, role: values.role }
-      );
-    } catch (err) {
-      // Two simultaneous registrations can pass the check above; the unique keys still win.
-      if (err.code === 'ER_DUP_ENTRY') {
-        const fields = String(err.sqlMessage).includes('uq_users_member_id')
-          ? { memberId: 'An account with this ID already exists.' }
-          : { email: 'An account with this email already exists.' };
-        throw httpError(409, 'That email or ID is already registered.', fields);
+    // The ID comes from the role, never from the request. Two people registering
+    // at the same moment can be offered the same number; the unique key rejects
+    // the second, which simply takes the next one.
+    let memberId;
+    for (let attempt = 1; ; attempt += 1) {
+      memberId = await nextMemberId(values.role);
+      try {
+        // The role is limited to the registerable ones (validated above), never a
+        // super admin. Status is fixed server-side.
+        const created = await query(
+          `INSERT INTO users (full_name, email, member_id, password_hash, role, status)
+           VALUES (?, ?, ?, ?, ?, 'active')`,
+          [values.fullName, values.email, memberId, passwordHash, values.role]
+        );
+        await recordAudit(
+          req,
+          'account.register',
+          `Registered ${values.role === 'admin' ? 'an' : 'a'} ${ROLE_LABEL[values.role]} account (ID ${memberId})`,
+          { id: created.insertId, full_name: values.fullName, member_id: memberId, role: values.role }
+        );
+        break;
+      } catch (err) {
+        if (err.code !== 'ER_DUP_ENTRY') throw err;
+        if (!String(err.sqlMessage).includes('uq_users_member_id')) {
+          throw httpError(409, 'That email is already registered.', { email: 'An account with this email already exists.' });
+        }
+        if (attempt >= 5) throw httpError(503, 'Could not assign an ID. Try again.');
       }
-      throw err;
     }
 
-    res.status(201).json({ message: `${ROLE_LABEL[values.role]} account created. You can sign in now.` });
+    res.status(201).json({
+      message: `${ROLE_LABEL[values.role]} account created. Your ID is ${memberId}.`,
+      memberId,
+    });
   } catch (err) {
     next(err);
   }

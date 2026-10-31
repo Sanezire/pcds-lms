@@ -14,7 +14,8 @@ export function normalizeMemberId(value) {
   return asString(value).trim().toUpperCase();
 }
 
-export function validateRegistration(body = {}) {
+// With autoId the ID is assigned by the server, so none is expected from the form.
+export function validateRegistration(body = {}, { autoId = false } = {}) {
   const fullName = asString(body.fullName).trim().replace(/\s+/g, ' ');
   const email = normalizeEmail(body.email);
   const memberId = normalizeMemberId(body.memberId);
@@ -37,10 +38,12 @@ export function validateRegistration(body = {}) {
     errors.email = 'Enter a valid email address.';
   }
 
-  if (!memberId) {
-    errors.memberId = 'Enter your ID.';
-  } else if (memberId.length < 3 || memberId.length > 32 || !MEMBER_ID_RE.test(memberId)) {
-    errors.memberId = 'ID must be 3 to 32 characters using letters, numbers, hyphens, underscores or slashes.';
+  if (!autoId) {
+    if (!memberId) {
+      errors.memberId = 'Enter your ID.';
+    } else if (memberId.length < 3 || memberId.length > 32 || !MEMBER_ID_RE.test(memberId)) {
+      errors.memberId = 'ID must be 3 to 32 characters using letters, numbers, hyphens, underscores or slashes.';
+    }
   }
 
   const passwordError = checkPassword(password);
