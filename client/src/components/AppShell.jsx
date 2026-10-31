@@ -1,11 +1,13 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { BrandMark } from './AuthLayout.jsx';
+import { MANAGER_ROLES, roleLabel } from '../auth/roles.js';
 
 export default function AppShell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const canManage = user.role === 'admin' || user.role === 'librarian';
+  const canManage = MANAGER_ROLES.includes(user.role);
+  const isSuperAdmin = user.role === 'super_admin';
 
   async function onLogout() {
     await logout();
@@ -24,10 +26,11 @@ export default function AppShell() {
           {canManage && <NavLink to="/statistics">Statistics</NavLink>}
           {canManage && <NavLink to="/students">Students</NavLink>}
           {canManage && <NavLink to="/kiosk">Kiosk</NavLink>}
+          {isSuperAdmin && <NavLink to="/audit-logs">Audit Logs</NavLink>}
         </nav>
         <div className="topbar-user">
           <span className="user-name">{user.fullName}</span>
-          <span className={`role-badge role-${user.role}`}>{user.role}</span>
+          <span className={`role-badge role-${user.role}`}>{roleLabel(user.role)}</span>
           <button className="btn btn-quiet" onClick={onLogout}>
             Sign out
           </button>

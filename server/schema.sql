@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   email             VARCHAR(255)    NOT NULL,
   member_id         VARCHAR(32)     NOT NULL,
   password_hash     VARCHAR(255)    NOT NULL,
-  role              ENUM('admin', 'librarian', 'student') NOT NULL DEFAULT 'student',
+  role              ENUM('admin', 'librarian', 'student', 'super_admin', 'student_assistant') NOT NULL DEFAULT 'student',
   status            ENUM('active', 'suspended', 'pending') NOT NULL DEFAULT 'active',
   last_login_at     DATETIME        NULL,
   created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -132,4 +132,23 @@ CREATE TABLE IF NOT EXISTS students_data (
   CONSTRAINT chk_students_data_rfid CHECK (rfid_number REGEXP '^[0-9A-Fa-f]+$'),
   CONSTRAINT chk_students_data_student CHECK (student_id REGEXP '^[0-9]{4}-[0-9]{4}-[0-9]$'),
   CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Audit log: one row per action by an admin, student assistant or super admin.
+-- The name, ID and role are copied into the row so the record stays readable even
+-- if the account is changed later. Rows are only ever added, never edited or removed.
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     BIGINT UNSIGNED NULL,
+  user_name   VARCHAR(100)    NOT NULL,
+  member_id   VARCHAR(32)     NOT NULL,
+  user_role   VARCHAR(32)     NOT NULL,
+  action      VARCHAR(40)     NOT NULL,
+  details     VARCHAR(500)    NOT NULL DEFAULT '',
+  ip_address  VARCHAR(45)     NULL,
+  created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_audit_created (created_at),
+  KEY idx_audit_user (user_id),
+  KEY idx_audit_action (action)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

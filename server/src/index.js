@@ -11,6 +11,8 @@ import authRoutes from './routes/auth.js';
 import kioskRoutes from './routes/kiosk.js';
 import manualAttendanceRoutes from './routes/manualAttendance.js';
 import studentRoutes from './routes/students.js';
+import auditLogRoutes from './routes/auditLogs.js';
+import { ensureSchema } from './migrate.js';
 import statisticsRoutes from './routes/statistics.js';
 import messageRoutes from './routes/messages.js';
 import eventRoutes, { kioskStreamRouter, closeAllClients } from './events.js';
@@ -47,6 +49,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/kiosk', kioskRoutes);
 app.use('/api/manual-attendance', manualAttendanceRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/messages', messageRoutes);
 
@@ -67,6 +70,13 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: { message: 'Something went wrong on our side. Try again.' } });
 });
+
+// Bring an older database up to date (new roles, audit log table) before taking requests.
+try {
+  await ensureSchema();
+} catch (err) {
+  console.error('Could not update the database schema:', err.message);
+}
 
 const server = app.listen(config.port, () => {
   console.log(`PCDS LRC API listening on http://localhost:${config.port}`);

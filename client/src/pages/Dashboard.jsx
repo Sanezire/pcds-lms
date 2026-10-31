@@ -1,8 +1,11 @@
 import { useAuth } from '../auth/AuthContext.jsx';
+import { MANAGER_ROLES } from '../auth/roles.js';
 import ManualAttendance from '../components/ManualAttendance.jsx';
 import MessageConfiguration from '../components/MessageConfiguration.jsx';
 
 const ROLE_COPY = {
+  super_admin: 'You have full access to the PCDS LRC, including the audit log.',
+  student_assistant: 'You can record manual attendance for students without RFID cards.',
   admin: 'You have administrator access to the PCDS LRC.',
   librarian: 'You can run the PCDS LRC.',
   student: 'Your account is active. Kiosk features will appear here.',
@@ -11,7 +14,9 @@ const ROLE_COPY = {
 export default function Dashboard() {
   const { user } = useAuth();
   const firstName = user.fullName.split(' ')[0];
-  const canRecordAttendance = user.role === 'admin' || user.role === 'librarian';
+  // Student assistants (SA) only get Manual Attendance; everything else is for managers.
+  const canRecordAttendance = MANAGER_ROLES.includes(user.role) || user.role === 'student_assistant';
+  const canManage = MANAGER_ROLES.includes(user.role);
 
   return (
     <div className="dashboard">
@@ -21,7 +26,7 @@ export default function Dashboard() {
       </header>
 
       {canRecordAttendance && <ManualAttendance />}
-      {canRecordAttendance && <MessageConfiguration />}
+      {canManage && <MessageConfiguration />}
     </div>
   );
 }

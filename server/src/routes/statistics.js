@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { ROLES, config } from '../config.js';
+import { MANAGER_ROLES, config } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { GENDERS } from '../validation.js';
 import { VISITS_SQL } from '../visits.js';
@@ -8,7 +8,7 @@ import { VISITS_SQL } from '../visits.js';
 const router = Router();
 
 // Same access as the kiosk screen: signed-in admins and librarians only.
-router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
+router.use(requireAuth, requireRole(...MANAGER_ROLES));
 
 const PAGE_SIZES = [10, 25, 50, 100];
 const DEFAULT_PAGE_SIZE = 25;

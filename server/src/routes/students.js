@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { ROLES } from '../config.js';
+import { MANAGER_ROLES } from '../config.js';
+import { recordAudit } from '../audit.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { validateStudentRecord } from '../validation.js';
 import { parseCsv } from '../csv.js';
@@ -9,7 +10,7 @@ import { ensureStudentsTable } from './kiosk.js';
 const router = Router();
 
 // Student records are managed by signed-in admins and librarians only.
-router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
+router.use(requireAuth, requireRole(...MANAGER_ROLES));
 
 const MAX_IMPORT_ROWS = 2000;
 const PAGE_SIZE_MAX = 100;
@@ -87,6 +88,7 @@ router.post('/', async (req, res, next) => {
       }
       throw err;
     }
+    await recordAudit(req, 'student.add', `Added student ${values.fullName} (${values.studentId}), ${values.course}`);
     res.status(201).json({ message: 'Student added.' });
   } catch (err) {
     next(err);
@@ -159,6 +161,14 @@ router.post('/import', async (req, res, next) => {
           problems.push({ line, name: values.fullName, errors: Object.values(duplicateFields(err)) });
         }
       }
+    }
+
+    if (commit) {
+      await recordAudit(
+        req,
+        'student.import',
+        `Imported ${added} ${added === 1 ? 'student' : 'students'} from a CSV file (${problems.length} skipped)`
+      );
     }
 
     res.json({

@@ -1,3 +1,5 @@
+import { REGISTERABLE_ROLES } from './config.js';
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const NAME_RE = /^[\p{L}][\p{L}\p{M} .'-]*$/u;
 const MEMBER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_\-/]*$/;
@@ -19,6 +21,7 @@ export function validateRegistration(body = {}) {
   const password = asString(body.password);
   const confirmPassword = asString(body.confirmPassword);
   const registrationKey = asString(body.registrationKey).trim();
+  const role = asString(body.role).trim();
 
   const errors = {};
 
@@ -35,7 +38,7 @@ export function validateRegistration(body = {}) {
   }
 
   if (!memberId) {
-    errors.memberId = 'Enter your admin ID.';
+    errors.memberId = 'Enter your ID.';
   } else if (memberId.length < 3 || memberId.length > 32 || !MEMBER_ID_RE.test(memberId)) {
     errors.memberId = 'ID must be 3 to 32 characters using letters, numbers, hyphens, underscores or slashes.';
   }
@@ -49,13 +52,15 @@ export function validateRegistration(body = {}) {
     errors.confirmPassword = 'Passwords do not match.';
   }
 
+  if (!REGISTERABLE_ROLES.includes(role)) errors.role = 'Choose a role.';
+
   if (!registrationKey) {
-    errors.registrationKey = 'Enter the admin registration key.';
+    errors.registrationKey = 'Enter the registration key.';
   } else if (registrationKey.length > 128) {
     errors.registrationKey = 'That key is too long.';
   }
 
-  return { errors, values: { fullName, email, memberId, password, registrationKey } };
+  return { errors, values: { fullName, email, memberId, password, registrationKey, role } };
 }
 
 export function checkPassword(password) {
@@ -155,7 +160,7 @@ export function validateStudentRecord(body = {}) {
   const fullName = asString(body.fullName).trim().replace(/\s+/g, ' ');
   const course = asString(body.course).trim().replace(/\s+/g, ' ');
   const gender = GENDER_WORDS[asString(body.gender).trim().toLowerCase()] || '';
-  const yearText = asString(body.yearLevel ?? '').trim();
+  const yearText = String(body.yearLevel ?? '').trim();
   const yearLevel = /^[1-4]$/.test(yearText) ? Number(yearText) : null;
   const errors = {};
 

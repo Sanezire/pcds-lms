@@ -8,6 +8,7 @@
     "dev": "node --watch src/index.js",
     "db:init": "node scripts/init-db.js",
     "seed:admin": "node scripts/seed-admin.js",
+    "seed:super-admin": "node scripts/seed-super-admin.js",
     "seed:students": "node scripts/seed-students.js"
   },
   "dependencies": {

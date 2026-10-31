@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { ROLES } from '../config.js';
+import { ATTENDANCE_ROLES } from '../config.js';
+import { recordAudit } from '../audit.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { validateManualAttendance } from '../validation.js';
 import { publish } from '../events.js';
@@ -9,7 +10,7 @@ import { ensureStudentsTable } from './kiosk.js';
 const router = Router();
 
 // Same access as the kiosk screen: signed-in admins and librarians only.
-router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
+router.use(requireAuth, requireRole(...ATTENDANCE_ROLES));
 
 const COLUMNS = `id, student_id, student_name, course, gender, time_in, time_out`;
 
@@ -107,6 +108,7 @@ router.post('/', async (req, res, next) => {
     }
 
     publish('attendance');
+    await recordAudit(req, 'attendance.time_in', `Timed in ${values.name} (${values.studentId}), ${values.course}`);
     const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [result.insertId]);
     res.status(201).json({ record: toRecord(rows[0]) });
   } catch (err) {
@@ -130,6 +132,7 @@ router.post('/:id/time-out', async (req, res, next) => {
     if (!rows[0]) throw httpError(404, 'Record not found.');
     if (!result.affectedRows) throw httpError(409, 'This student was already timed out.');
     publish('attendance');
+    await recordAudit(req, 'attendance.time_out', `Timed out ${rows[0].student_name} (${rows[0].student_id})`);
 
     res.json({ record: toRecord(rows[0]) });
   } catch (err) {
@@ -169,6 +172,11 @@ router.patch('/:id', async (req, res, next) => {
     const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [id]);
     if (!rows[0]) throw httpError(404, 'Record not found.');
     publish('attendance');
+    await recordAudit(
+      req,
+      'attendance.edit',
+      `Edited the manual attendance entry of ${values.name} (${values.studentId}), ${values.course}, ${values.gender}`
+    );
 
     res.json({ record: toRecord(rows[0]) });
   } catch (err) {
@@ -181,9 +189,15 @@ router.delete('/:id', async (req, res, next) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid record.');
 
+    const before = (await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [id]))[0];
     const result = await query(`DELETE FROM manual_attendance WHERE id = ?`, [id]);
     if (!result.affectedRows) throw httpError(404, 'Record not found.');
     publish('attendance');
+    await recordAudit(
+      req,
+      'attendance.delete',
+      before ? `Deleted the manual attendance entry of ${before.student_name} (${before.student_id})` : 'Deleted a manual attendance entry'
+    );
 
     res.json({ ok: true });
   } catch (err) {

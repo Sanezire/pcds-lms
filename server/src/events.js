@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { ROLES } from './config.js';
+import { ATTENDANCE_ROLES } from './config.js';
 import { requireAuth, requireRole, httpError } from './middleware/auth.js';
 import { requireKioskKey } from './middleware/kioskKey.js';
 
@@ -37,7 +37,7 @@ function openStream(req, res) {
 
 // Signed-in staff screens.
 const router = Router();
-router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
+router.use(requireAuth, requireRole(...ATTENDANCE_ROLES));
 router.get('/', openStream);
 
 // The kiosk screen, which has no sign-in. Frames only name the topic that

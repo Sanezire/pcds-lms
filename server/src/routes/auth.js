@@ -2,7 +2,8 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { query } from '../db.js';
-import { config, ROLES } from '../config.js';
+import { config } from '../config.js';
+import { recordAudit } from '../audit.js';
 import {
   validateRegistration,
   validateLogin,
@@ -24,6 +25,8 @@ import {
 } from '../middleware/rateLimit.js';
 
 const router = Router();
+
+const ROLE_LABEL = { admin: 'Administrator', student_assistant: 'Student Assistant' };
 
 // Compare hashes of both values so the check takes the same time whatever the input.
 function keyMatches(provided, expected) {
@@ -47,11 +50,11 @@ router.post('/register', registerLimiter, async (req, res, next) => {
     // This runs before any database lookup so it cannot be used to probe for
     // existing emails or IDs.
     if (!config.adminRegistrationKey) {
-      throw httpError(503, 'Admin registration is turned off. Set ADMIN_REGISTRATION_KEY on the server to enable it.');
+      throw httpError(503, 'Registration is turned off. Set ADMIN_REGISTRATION_KEY on the server to enable it.');
     }
     if (!keyMatches(values.registrationKey, config.adminRegistrationKey)) {
-      throw httpError(403, 'The admin registration key is incorrect.', {
-        registrationKey: 'The admin registration key is incorrect.',
+      throw httpError(403, 'The registration key is incorrect.', {
+        registrationKey: 'The registration key is incorrect.',
       });
     }
 
@@ -71,12 +74,18 @@ router.post('/register', registerLimiter, async (req, res, next) => {
     const passwordHash = await bcrypt.hash(values.password, config.bcryptRounds);
 
     try {
-      // Every account created here is an administrator. Role and status are
-      // fixed server-side; anything sent by the client is ignored.
-      await query(
+      // The role is limited to the registerable ones (validated above), never a
+      // super admin. Status is fixed server-side.
+      const created = await query(
         `INSERT INTO users (full_name, email, member_id, password_hash, role, status)
          VALUES (?, ?, ?, ?, ?, 'active')`,
-        [values.fullName, values.email, values.memberId, passwordHash, ROLES.ADMIN]
+        [values.fullName, values.email, values.memberId, passwordHash, values.role]
+      );
+      await recordAudit(
+        req,
+        'account.register',
+        `Registered ${values.role === 'admin' ? 'an' : 'a'} ${ROLE_LABEL[values.role]} account`,
+        { id: created.insertId, full_name: values.fullName, member_id: values.memberId, role: values.role }
       );
     } catch (err) {
       // Two simultaneous registrations can pass the check above; the unique keys still win.
@@ -89,7 +98,7 @@ router.post('/register', registerLimiter, async (req, res, next) => {
       throw err;
     }
 
-    res.status(201).json({ message: 'Administrator account created. You can sign in now.' });
+    res.status(201).json({ message: `${ROLE_LABEL[values.role]} account created. You can sign in now.` });
   } catch (err) {
     next(err);
   }
@@ -113,6 +122,7 @@ router.post('/login', loginIpLimiter, loginIdentifierLimiter, async (req, res, n
 
     const passwordOk = await bcrypt.compare(values.password, user ? user.password_hash : DUMMY_HASH);
     if (!user || !passwordOk) {
+      if (user) await recordAudit(req, 'auth.login_failed', 'Incorrect password', user);
       throw httpError(401, 'Incorrect email, ID or password.');
     }
 
@@ -126,6 +136,8 @@ router.post('/login', loginIpLimiter, loginIdentifierLimiter, async (req, res, n
     const token = await createSession(user.id, req, values.remember);
     await query('UPDATE users SET last_login_at = UTC_TIMESTAMP() WHERE id = ?', [user.id]);
 
+    await recordAudit(req, 'auth.login', 'Signed in', user);
+
     res.cookie(config.session.cookieName, token, cookieOptions(values.remember));
     res.json({ user: toPublicUser(user) });
   } catch (err) {
@@ -136,7 +148,11 @@ router.post('/login', loginIpLimiter, loginIdentifierLimiter, async (req, res, n
 router.post('/logout', async (req, res, next) => {
   try {
     const token = req.cookies?.[config.session.cookieName];
-    if (token && typeof token === 'string') await destroySession(token);
+    if (token && typeof token === 'string') {
+      const who = await findSessionUser(token);
+      if (who) await recordAudit(req, 'auth.logout', 'Signed out', who);
+      await destroySession(token);
+    }
     res.clearCookie(config.session.cookieName, { path: '/' });
     res.json({ message: 'Signed out.' });
   } catch (err) {

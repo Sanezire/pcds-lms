@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { ROLES } from '../config.js';
+import { MANAGER_ROLES } from '../config.js';
+import { recordAudit } from '../audit.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { publish } from '../events.js';
 import { validateMessageText, validateOptionalMessage, validateRuleId } from '../validation.js';
@@ -8,7 +9,7 @@ import { validateMessageText, validateOptionalMessage, validateRuleId } from '..
 const router = Router();
 
 // Same access as the rest of the staff tools: signed-in admins and librarians.
-router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.LIBRARIAN));
+router.use(requireAuth, requireRole(...MANAGER_ROLES));
 
 const toRule = (r) => ({
   id: r.id,
@@ -90,6 +91,7 @@ router.post('/rules', async (req, res, next) => {
       );
       const rows = await query(`SELECT ${RULE_COLUMNS} FROM message_rules WHERE id = ?`, [result.insertId]);
       publish('messages');
+      await recordAudit(req, 'message.rule_add', `Added a message for ID ${id.studentId}`);
       res.status(201).json({ rule: toRule(rows[0]) });
     } catch (err) {
       if (err.code === 'ER_DUP_ENTRY') {
@@ -140,6 +142,8 @@ router.patch('/rules/:id', async (req, res, next) => {
     await query(`UPDATE message_rules SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
     const rows = await query(`SELECT ${RULE_COLUMNS} FROM message_rules WHERE id = ?`, [id]);
     publish('messages');
+    const what = req.body?.enabled !== undefined && sets.length === 1 ? (req.body.enabled ? 'Switched on' : 'Switched off') : 'Edited';
+    await recordAudit(req, 'message.rule_edit', `${what} the message for ID ${current.student_id}`);
     res.json({ rule: toRule(rows[0]) });
   } catch (err) {
     next(err);
@@ -148,9 +152,12 @@ router.patch('/rules/:id', async (req, res, next) => {
 
 router.delete('/rules/:id', async (req, res, next) => {
   try {
-    const result = await query('DELETE FROM message_rules WHERE id = ?', [parseId(req.params.id)]);
+    const ruleId = parseId(req.params.id);
+    const before = (await query('SELECT student_id FROM message_rules WHERE id = ?', [ruleId]))[0];
+    const result = await query('DELETE FROM message_rules WHERE id = ?', [ruleId]);
     if (!result.affectedRows) throw httpError(404, 'Message not found.');
     publish('messages');
+    await recordAudit(req, 'message.rule_delete', `Deleted the message for ID ${before?.student_id ?? ''}`.trim());
     res.json({ message: 'Deleted.' });
   } catch (err) {
     next(err);
@@ -168,6 +175,7 @@ router.post('/broadcast', async (req, res, next) => {
     // Old rows are only history; keep the table small.
     await query('DELETE FROM kiosk_broadcasts WHERE created_at < (NOW() - INTERVAL 7 DAY)');
     publish('messages');
+    await recordAudit(req, 'message.broadcast', `Sent a message to the kiosk: "${text.message}"`);
 
     res.status(201).json({ message: 'Sent to the kiosk.' });
   } catch (err) {
@@ -204,6 +212,7 @@ router.delete('/broadcasts', async (req, res, next) => {
   try {
     const result = await query('DELETE FROM kiosk_broadcasts');
     publish('messages');
+    await recordAudit(req, 'message.broadcast_delete', `Deleted all sent kiosk messages (${result.affectedRows})`);
     res.json({ message: 'Deleted.', deleted: result.affectedRows });
   } catch (err) {
     next(err);
@@ -215,6 +224,7 @@ router.delete('/broadcasts/:id', async (req, res, next) => {
     const result = await query('DELETE FROM kiosk_broadcasts WHERE id = ?', [parseId(req.params.id)]);
     if (!result.affectedRows) throw httpError(404, 'Message not found.');
     publish('messages');
+    await recordAudit(req, 'message.broadcast_delete', 'Deleted a sent kiosk message');
     res.json({ message: 'Deleted.' });
   } catch (err) {
     next(err);
@@ -245,6 +255,7 @@ router.put('/pinned', async (req, res, next) => {
       [text.message, req.user.id]
     );
     publish('messages');
+    await recordAudit(req, 'message.pin', `Kept a message on the kiosk: "${text.message}"`);
     res.json({ pinned: text.message });
   } catch (err) {
     next(err);
@@ -256,6 +267,7 @@ router.delete('/pinned', async (req, res, next) => {
     await ensurePinnedTable();
     await query('DELETE FROM kiosk_pinned WHERE id = 1');
     publish('messages');
+    await recordAudit(req, 'message.unpin', 'Removed the kept message from the kiosk');
     res.json({ pinned: null });
   } catch (err) {
     next(err);

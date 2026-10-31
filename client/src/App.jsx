@@ -7,6 +7,8 @@ import Dashboard from './pages/Dashboard.jsx';
 import Kiosk from './pages/Kiosk.jsx';
 import Statistics from './pages/Statistics.jsx';
 import Students from './pages/Students.jsx';
+import AuditLogs from './pages/AuditLogs.jsx';
+import { MANAGER_ROLES, SUPER_ADMIN_ONLY } from './auth/roles.js';
 
 export default function App() {
   return (
@@ -24,9 +26,12 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route element={<ProtectedRoute roles={['admin', 'librarian']} />}>
+          <Route element={<ProtectedRoute roles={MANAGER_ROLES} />}>
             <Route path="/statistics" element={<Statistics />} />
             <Route path="/students" element={<Students />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={SUPER_ADMIN_ONLY} />}>
+            <Route path="/audit-logs" element={<AuditLogs />} />
           </Route>
         </Route>
       </Route>

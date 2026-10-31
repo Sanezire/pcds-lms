@@ -11,8 +11,14 @@ const EMPTY = {
   memberId: '',
   password: '',
   confirmPassword: '',
+  role: '',
   registrationKey: '',
 };
+
+const ROLE_OPTIONS = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'student_assistant', label: 'SA (Student Assistant)' },
+];
 
 export default function Register() {
   const { register } = useAuth();
@@ -51,7 +57,7 @@ export default function Register() {
       await register(values);
       navigate('/login', {
         replace: true,
-        state: { notice: 'Administrator account created. Sign in to continue.' },
+        state: { notice: `${values.role === 'admin' ? 'Admin' : 'Student Assistant'} account created. Sign in to continue.` },
       });
     } catch (err) {
       setFormError(err.message);
@@ -62,8 +68,8 @@ export default function Register() {
 
   return (
     <AuthLayout
-      title="Register administrator"
-      subtitle="This page creates administrator accounts and needs the admin registration key."
+      title="Register account"
+      subtitle="Create an Admin or Student Assistant (SA) account. This needs the registration key."
       footer={
         <>
           Already registered? <Link to="/login">Sign in</Link>
@@ -95,8 +101,34 @@ export default function Register() {
           onChange={set('email')}
           error={errors.email}
         />
+        <div className={`field${errors.role ? ' has-error' : ''}`}>
+          <label htmlFor="reg-role">Role</label>
+          <div className="input-wrap">
+            <select
+              id="reg-role"
+              name="role"
+              className="field-select"
+              value={values.role}
+              onChange={set('role')}
+              aria-invalid={errors.role ? 'true' : undefined}
+              aria-describedby={errors.role ? 'reg-role-err' : undefined}
+            >
+              <option value="">Select a role</option>
+              {ROLE_OPTIONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {errors.role && (
+            <p className="error-text" id="reg-role-err">
+              {errors.role}
+            </p>
+          )}
+        </div>
         <Field
-          label="Admin ID"
+          label="ID"
           name="memberId"
           autoComplete="off"
           value={values.memberId}
@@ -124,7 +156,7 @@ export default function Register() {
           error={errors.confirmPassword}
         />
         <Field
-          label="Admin registration key"
+          label="Registration key"
           name="registrationKey"
           type="password"
           autoComplete="off"
@@ -133,7 +165,7 @@ export default function Register() {
           error={errors.registrationKey}
         />
         <button className="btn btn-primary btn-block" type="submit" disabled={submitting}>
-          {submitting ? 'Creating account…' : 'Create administrator'}
+          {submitting ? 'Creating account…' : 'Create account'}
         </button>
       </form>
     </AuthLayout>

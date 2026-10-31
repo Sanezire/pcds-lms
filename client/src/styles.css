@@ -1867,3 +1867,12 @@ a:hover {
 .detail-bar p { margin: 0; }
 .detail-bar p:focus { outline: none; }
 @media (prefers-reduced-motion: reduce) { .chart-card { transition: none; } .chart-card:hover { transform: none; } }
+
+/* ---------- Roles and audit log ---------- */
+.role-super_admin { background: var(--blue-600); color: #fff; border-color: var(--blue-600); }
+.role-student_assistant { background: var(--white); }
+.audit-table td { vertical-align: top; }
+.audit-table .audit-details { white-space: normal; min-width: 200px; overflow-wrap: anywhere; }
+.audit-id { display: block; font-size: 0.8125rem; color: var(--muted); }
+.audit-action.is-warn { color: #9a3412; font-weight: 600; }
+select.field-select[name="role"] { width: 100%; }
