@@ -75,7 +75,8 @@ function Icon({ name }) {
   );
 }
 
-// Message box above the tap instruction. A message sent from the dashboard
+// Message box above the tap instruction. While it shows it replaces the
+// "Library Attendance" title, which comes back when the message is removed. A message sent from the dashboard
 // shows for 5 seconds and then goes away by itself; a kept message stays
 // until staff switch it off. It is not
 // an overlay, so cards can still be tapped while it is showing.
@@ -335,11 +336,13 @@ export default function Kiosk() {
 
       <main className="kiosk-main">
         <img className="kiosk-logo" src={LOGO_SRC} alt="Polytechnic College of Davao del Sur seal" />
-        <h1 className="kiosk-title">Library Attendance</h1>
+        {/* A message takes the place of the title while it is showing, then the title returns. */}
         {currentMessage ? (
           <KioskNotice key={currentMessage.key} text={currentMessage.text} onDone={proceed} />
+        ) : pinned !== null ? (
+          <KioskNotice text={pinned} />
         ) : (
-          pinned !== null && <KioskNotice text={pinned} />
+          <h1 className="kiosk-title">Library Attendance</h1>
         )}
         <p className="kiosk-instruction">Please tap your RFID card on the reader.</p>
 
