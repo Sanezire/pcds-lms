@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useLiveReload, useNow } from '../live.js';
-import Analytics from '../components/Analytics.jsx';
-import LibraryVisitTrends from '../components/LibraryVisitTrends.jsx';
+import AnalyticsHub from '../components/AnalyticsHub.jsx';
 
 const EMPTY = {
   course: '',
@@ -382,7 +381,7 @@ export default function Statistics() {
 
   const choose = (id) => {
     if (id === view.id) return;
-    setParams(id === 'statistics' ? {} : { view: id }, { replace: true });
+    setParams(id === 'statistics' ? {} : { view: id }, { replace: true }); // tab switches replace history; opening a chart adds an entry
   };
 
   return (
@@ -417,10 +416,7 @@ export default function Statistics() {
 
       <div id="stats-view" role="tabpanel" aria-labelledby={`tab-${view.id}`} className="stats">
         {view.id === 'analytics' ? (
-          <>
-            <Analytics />
-            <LibraryVisitTrends />
-          </>
+          <AnalyticsHub />
         ) : (
           <AttendanceLogs />
         )}
