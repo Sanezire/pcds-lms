@@ -1873,6 +1873,12 @@ a:hover {
 .role-student_assistant { background: var(--white); }
 .audit-table td { vertical-align: top; }
 .audit-table .audit-details { white-space: normal; min-width: 200px; overflow-wrap: anywhere; }
+.audit-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.audit-bar .muted { margin: 0; }
+.audit-selected { font-weight: 600; color: var(--ink); }
+.audit-table .audit-check { width: 44px; padding-right: 0; }
+.audit-table .audit-check input { width: 20px; height: 20px; accent-color: var(--blue-600); cursor: pointer; }
+.audit-table tr.is-selected td { background: var(--blue-50); }
 .audit-id { display: block; font-size: 0.8125rem; color: var(--muted); }
 .audit-action.is-warn { color: #9a3412; font-weight: 600; }
 select.field-select[name="role"] { width: 100%; }

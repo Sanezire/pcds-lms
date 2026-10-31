@@ -2,15 +2,17 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { ROLES, config, AUDITED_ROLES } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
+import { recordAudit } from '../audit.js';
 
 const router = Router();
 
-// The audit log can only be read, and only by a super admin. There is no way
-// to edit or delete an entry through the API.
+// Only a super admin can read or delete the audit log, and entries can never be
+// edited. Every deletion leaves one new entry behind saying who deleted what.
 router.use(requireAuth, requireRole(ROLES.SUPER_ADMIN));
 
 const PAGE_SIZES = [10, 25, 50, 100];
-const CATEGORIES = ['auth', 'account', 'attendance', 'student', 'message'];
+const CATEGORIES = ['auth', 'account', 'attendance', 'student', 'message', 'audit'];
+const MAX_DELETE_IDS = 1000;
 
 // A school-local calendar day (YYYY-MM-DD) as a UTC instant.
 function dayStart(value, label) {
@@ -80,6 +82,34 @@ router.get('/', async (req, res, next) => {
         ip: r.ip_address,
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Deletes the selected entries ({ ids: [...] }) or every entry ({ all: true }).
+router.delete('/', async (req, res, next) => {
+  try {
+    const { ids, all } = req.body || {};
+    let deleted;
+    let details;
+
+    if (all === true) {
+      const result = await query('DELETE FROM audit_logs');
+      deleted = result.affectedRows;
+      details = `Deleted all audit logs (${deleted} ${deleted === 1 ? 'entry' : 'entries'}).`;
+    } else {
+      if (!Array.isArray(ids) || ids.length === 0) throw httpError(400, 'Select at least one entry to delete.');
+      if (ids.length > MAX_DELETE_IDS) throw httpError(400, `Select up to ${MAX_DELETE_IDS} entries at a time.`);
+      const clean = [...new Set(ids)];
+      if (!clean.every((id) => Number.isSafeInteger(id) && id > 0)) throw httpError(400, 'Invalid selection.');
+      const result = await query(`DELETE FROM audit_logs WHERE id IN (${clean.map(() => '?').join(',')})`, clean);
+      deleted = result.affectedRows;
+      details = `Deleted ${deleted} selected ${deleted === 1 ? 'entry' : 'entries'}.`;
+    }
+
+    if (deleted > 0) await recordAudit(req, 'audit.delete', details);
+    res.json({ deleted });
   } catch (err) {
     next(err);
   }
