@@ -9,6 +9,32 @@ const num = (value, fallback) => {
 // Decides where one attendance day ends and the next begins.
 const utcOffset = Number.parseInt(process.env.ATTENDANCE_UTC_OFFSET_MINUTES ?? '480', 10);
 
+// LIBRARY_OPEN_HOUR / LIBRARY_CLOSE_HOUR: whole hours in local time, 24-hour clock
+// (8 and 17 = open 8:00 AM until 5:00 PM). LIBRARY_CLOSED_DAYS: comma-separated days
+// the library is closed (sun, mon, ... or 0-6 with 0 = Sunday). Defaults: 8 to 17, closed Sundays.
+function libraryHours() {
+  const hour = (value, fallback) => {
+    const n = Number.parseInt(value ?? '', 10);
+    return Number.isInteger(n) && n >= 0 && n <= 24 ? n : fallback;
+  };
+  let openHour = hour(process.env.LIBRARY_OPEN_HOUR, 8);
+  let closeHour = hour(process.env.LIBRARY_CLOSE_HOUR, 17);
+  if (closeHour <= openHour) {
+    openHour = 8;
+    closeHour = 17;
+  }
+  const names = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const raw = (process.env.LIBRARY_CLOSED_DAYS ?? 'sun').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const closed = new Set();
+  for (const item of raw) {
+    const i = /^[0-6]$/.test(item) ? Number(item) : names.indexOf(item.slice(0, 3));
+    if (i >= 0) closed.add(i);
+  }
+  if (closed.size >= 7) closed.clear(); // never treat every day as closed
+  // Sent as Monday = 0 ... Sunday = 6 (the order the charts use).
+  return { openHour, closeHour, closedWeekdays: [...closed].map((d) => (d + 6) % 7).sort((a, b) => a - b) };
+}
+
 const isProd = process.env.NODE_ENV === 'production';
 
 export const config = {
@@ -39,6 +65,9 @@ export const config = {
   kiosk: {
     key: (process.env.KIOSK_KEY || '').trim(),
   },
+  // When the library is open. Peak-usage analysis only counts visits inside these hours
+  // and on open days; visits at other times are reported separately.
+  library: libraryHours(),
   bcryptRounds: num(process.env.BCRYPT_ROUNDS, 12),
   // Shared secret required to create an administrator account at /register.
   // When empty, admin registration is switched off entirely.

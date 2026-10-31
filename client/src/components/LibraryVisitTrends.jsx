@@ -54,7 +54,7 @@ function useWidth(ref) {
 
 // One chart for every report: bars for comparing buckets, lines for trends.
 // `series` is [{ name, color, buckets: [{ key, visits, future }] }] sharing the same keys.
-function TrendChart({ type, series, axisLabel, tipTitle, ariaLabel }) {
+export function TrendChart({ type, series, axisLabel, tipTitle, ariaLabel }) {
   const wrapRef = useRef(null);
   const width = useWidth(wrapRef);
   const [active, setActive] = useState(null);

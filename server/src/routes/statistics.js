@@ -204,6 +204,88 @@ function resolveRange(q, today) {
   }
 }
 
+// ---- Peak usage ----
+// When the library is busiest. Each visit is placed at the time the student first
+// arrived that day (one visit per student per day, same as everywhere else), in the
+// school's local time. Only visits on open days and inside operating hours are
+// counted in the charts; the rest are reported separately so nothing disappears.
+
+router.get('/peak', async (req, res, next) => {
+  try {
+    const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
+    const { from, to } = resolveRange(req.query, today);
+    const { openHour, closeHour, closedWeekdays } = config.library;
+
+    const rows = await query(
+      `SELECT HOUR(arrived) AS h, WEEKDAY(arrived) AS wd, DATE_FORMAT(arrived, '%Y-%m') AS m, COUNT(*) AS c
+         FROM (
+           SELECT student_id, d, MIN(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS arrived
+             FROM (SELECT student_id, time_in, DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d
+                     FROM (${VISITS_SQL}) v) x
+            WHERE d BETWEEN ? AND ?
+            GROUP BY student_id, d
+         ) y
+        GROUP BY h, wd, m`,
+      [from, to]
+    );
+
+    const hours = Array.from({ length: closeHour - openHour }, (_, i) => ({ hour: openHour + i, visits: 0 }));
+    const weekdays = Array.from({ length: 7 }, (_, i) => ({ day: i, visits: 0, closed: closedWeekdays.includes(i) }));
+    const months = new Map();
+    let total = 0;
+    let offHours = 0;
+    for (const r of rows) {
+      const c = Number(r.c);
+      total += c;
+      if (closedWeekdays.includes(r.wd) || r.h < openHour || r.h >= closeHour) {
+        offHours += c;
+        continue;
+      }
+      hours[r.h - openHour].visits += c;
+      weekdays[r.wd].visits += c;
+      months.set(r.m, (months.get(r.m) || 0) + c);
+    }
+
+    // Every month in the range, so quiet months show as zero rather than vanishing.
+    const monthList = [];
+    for (let k = from.slice(0, 7); k <= to.slice(0, 7); ) {
+      monthList.push({ month: k, visits: months.get(k) || 0 });
+      const [y, mo] = k.split('-').map(Number);
+      k = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`;
+    }
+
+    // Highest / lowest; the earliest one wins a tie. Nothing is "busiest" with no visits.
+    const top = (list) => list.reduce((a, b) => (b.visits > a.visits ? b : a));
+    const best = (list, pick) => (list.some((x) => x.visits > 0) ? pick(top(list)) : null);
+    const least = (list, pick) =>
+      list.some((x) => x.visits > 0) ? pick(list.reduce((a, b) => (b.visits < a.visits ? b : a))) : null;
+    const openDays = weekdays.filter((d) => !d.closed);
+
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      today,
+      from,
+      to,
+      total,
+      counted: total - offHours,
+      offHours,
+      hours: { open: openHour, close: closeHour, closedWeekdays },
+      byHour: hours,
+      byWeekday: weekdays,
+      byMonth: monthList,
+      insights: {
+        busiestDay: best(openDays, (d) => ({ day: d.day, visits: d.visits })),
+        leastBusyDay: least(openDays, (d) => ({ day: d.day, visits: d.visits })),
+        busiestMonth: best(monthList, (m) => ({ month: m.month, visits: m.visits })),
+        busiestHour: best(hours, (h) => ({ hour: h.hour, visits: h.visits })),
+        leastBusyHour: least(hours, (h) => ({ hour: h.hour, visits: h.visits })),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/visits', async (req, res, next) => {
   try {
     const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));

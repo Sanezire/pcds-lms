@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import Analytics from './Analytics.jsx';
 import LibraryVisitTrends from './LibraryVisitTrends.jsx';
+import PeakUsage, { hourRange } from './PeakUsage.jsx';
 
 const number = new Intl.NumberFormat();
 
@@ -91,12 +92,29 @@ function TrendsPreview() {
   );
 }
 
+function PeakPreview() {
+  const { data, error } = usePreviewData('/statistics/peak?range=last30');
+  if (error && !data) return <p className="mini-note">Could not load.</p>;
+  if (!data) return <p className="mini-note">Loading…</p>;
+  const busiest = data.insights.busiestHour;
+  return (
+    <>
+      <p className="mini-figure">
+        <strong>{busiest ? hourRange(busiest.hour).split('–')[0] : '–'}</strong>
+        <span className="muted"> {busiest ? 'is the busiest hour' : 'no visits yet'}</span>
+      </p>
+      <MiniBars values={data.byHour.map((h) => h.visits)} />
+      <p className="mini-foot muted">Visits by hour, last 30 days</p>
+    </>
+  );
+}
+
 // ---- Registry: adding a chart later means adding one entry here ----
 // Entries without Preview/Detail are shown as "coming soon" placeholders.
 const CHARTS = [
   { id: 'summary', title: 'Library Visit Summary', blurb: 'Daily visits and key totals', Preview: SummaryPreview, Detail: Analytics },
   { id: 'trends', title: 'Library Visit Trends', blurb: 'Daily, monthly and yearly trends', Preview: TrendsPreview, Detail: LibraryVisitTrends },
-  { id: 'soon-1', title: 'More analytics', blurb: 'A new chart will appear here' },
+  { id: 'peak', title: 'Peak Library Usage', blurb: 'Busiest hours, days and months', Preview: PeakPreview, Detail: PeakUsage },
   { id: 'soon-2', title: 'More analytics', blurb: 'A new chart will appear here' },
   { id: 'soon-3', title: 'More analytics', blurb: 'A new chart will appear here' },
 ];

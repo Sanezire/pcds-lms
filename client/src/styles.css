@@ -1906,3 +1906,13 @@ a:hover {
 .audit-id { display: block; font-size: 0.8125rem; color: var(--muted); }
 .audit-action.is-warn { color: #9a3412; font-weight: 600; }
 select.field-select[name="role"] { width: 100%; }
+
+/* ---------- Peak library usage ---------- */
+.peak-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 0; }
+.peak-tile { background: var(--blue-50); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.peak-tile dt { font-size: 0.8rem; color: var(--muted); }
+.peak-tile dd { margin: 4px 0 2px; font-size: 1.1rem; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.peak-tile p { margin: 0; font-size: 0.8rem; }
+.peak-hours { margin: 0; font-size: 0.9rem; }
+.peak { display: grid; gap: 16px; }
+.peak .table-head { margin-bottom: 0; }
