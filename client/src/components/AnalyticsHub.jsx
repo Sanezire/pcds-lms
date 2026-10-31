@@ -5,6 +5,7 @@ import { useLiveReload } from '../live.js';
 import Analytics from './Analytics.jsx';
 import LibraryVisitTrends from './LibraryVisitTrends.jsx';
 import PeakUsage, { hourRange } from './PeakUsage.jsx';
+import ProgramYearVisits, { summarize } from './ProgramYearVisits.jsx';
 
 const number = new Intl.NumberFormat();
 
@@ -109,19 +110,38 @@ function PeakPreview() {
   );
 }
 
+function ProgramPreview() {
+  const { data, error } = usePreviewData('/statistics/program-year?range=all');
+  if (error && !data) return <p className="mini-note">Could not load.</p>;
+  if (!data) return <p className="mini-note">Loading…</p>;
+  const { programs } = summarize(data.rows);
+  if (!programs.length) return <p className="mini-note">No visits with a recorded program yet.</p>;
+  const top = programs[0];
+  return (
+    <>
+      <p className="mini-figure">
+        <strong>{top.program}</strong>
+        <span className="muted"> leads with {((top.total / data.total) * 100).toFixed(0)}% of visits</span>
+      </p>
+      <MiniBars values={programs.map((p) => p.total)} />
+      <p className="mini-foot muted">
+        {number.format(programs.length)} {programs.length === 1 ? 'program' : 'programs'} · {number.format(data.total)} {data.total === 1 ? 'visit' : 'visits'}
+      </p>
+    </>
+  );
+}
+
 // ---- Registry: adding a chart later means adding one entry here ----
-// Entries without Preview/Detail are shown as "coming soon" placeholders.
 const CHARTS = [
   { id: 'summary', title: 'Library Visit Summary', blurb: 'Daily visits and key totals', Preview: SummaryPreview, Detail: Analytics },
   { id: 'trends', title: 'Library Visit Trends', blurb: 'Daily, monthly and yearly trends', Preview: TrendsPreview, Detail: LibraryVisitTrends },
   { id: 'peak', title: 'Peak Library Usage', blurb: 'Busiest hours, days and months', Preview: PeakPreview, Detail: PeakUsage },
-  { id: 'soon-2', title: 'More analytics', blurb: 'A new chart will appear here' },
-  { id: 'soon-3', title: 'More analytics', blurb: 'A new chart will appear here' },
+  { id: 'programs', title: 'Visits by Program & Year Level', blurb: 'Programs and year levels compared', Preview: ProgramPreview, Detail: ProgramYearVisits },
 ];
 
 export default function AnalyticsHub() {
   const [params, setParams] = useSearchParams();
-  const chart = CHARTS.find((c) => c.id === params.get('chart') && c.Detail) || null;
+  const chart = CHARTS.find((c) => c.id === params.get('chart')) || null;
   const lastOpened = useRef(null);
   const detailRef = useRef(null);
 
@@ -163,30 +183,17 @@ export default function AnalyticsHub() {
     <ul className="chart-cards" aria-label="Analytics charts">
       {CHARTS.map((c) => (
         <li key={c.id}>
-          {c.Preview ? (
-            <button id={`chart-card-${c.id}`} type="button" className="chart-card" onClick={() => open(c.id)}>
-              <span className="chart-card-head">
-                <span className="chart-card-title">{c.title}</span>
-                <span className="chart-card-open">
-                  View details <span aria-hidden="true">→</span>
-                </span>
+          <button id={`chart-card-${c.id}`} type="button" className="chart-card" onClick={() => open(c.id)}>
+            <span className="chart-card-head">
+              <span className="chart-card-title">{c.title}</span>
+              <span className="chart-card-open">
+                View details <span aria-hidden="true">→</span>
               </span>
-              <span className="chart-card-body">
-                <c.Preview />
-              </span>
-            </button>
-          ) : (
-            <div className="chart-card is-soon" aria-label={`${c.title}: coming soon`}>
-              <span className="chart-card-head">
-                <span className="chart-card-title">{c.title}</span>
-                <span className="soon-badge">Coming soon</span>
-              </span>
-              <span className="chart-card-body soon-body">
-                <span aria-hidden="true" className="soon-shape" />
-                <span className="muted">{c.blurb}</span>
-              </span>
-            </div>
-          )}
+            </span>
+            <span className="chart-card-body">
+              <c.Preview />
+            </span>
+          </button>
         </li>
       ))}
     </ul>

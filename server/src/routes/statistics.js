@@ -481,4 +481,96 @@ router.get('/trends', async (req, res, next) => {
   }
 });
 
+// ---- Visits by academic program and year level ----
+// Every visit is one student on one school day (same rule as everywhere else).
+// The program and year level come from the student's record in students_data;
+// for a manual entry from a student without a record, the course typed in the
+// entry is used and the year level is unknown. Visits by accounts with no
+// program at all (staff, for example) are not student visits and are left out.
+
+const MAX_PROGRAM_RANGE_DAYS = 3660;
+
+async function resolveProgramRange(q, today) {
+  const year = Number(today.slice(0, 4));
+  switch (q.range ?? 'all') {
+    case 'all': {
+      const rows = await query(`SELECT DATE_FORMAT(MIN(d), '%Y-%m-%d') AS first FROM (${VISIT_DAYS_SQL}) x`);
+      return { from: rows[0]?.first || today, to: today };
+    }
+    case 'lastYear':
+      return { from: `${year - 1}-01-01`, to: `${year - 1}-12-31` };
+    case 'custom': {
+      const from = parseDay(q.from, 'Start date');
+      const to = parseDay(q.to, 'End date');
+      if (from > to) throw httpError(400, 'The start date cannot be after the end date.');
+      if (to > today) throw httpError(400, 'The end date cannot be in the future.');
+      if (daysBetween(from, to) + 1 > MAX_PROGRAM_RANGE_DAYS) throw httpError(400, 'Choose a period of up to 10 years.');
+      return { from, to };
+    }
+    default:
+      return resolveRange(q, today); // last7, last30, last90, month, year
+  }
+}
+
+// One row per student per day, with the program the student belongs to.
+const PROGRAM_VISITS_SQL = `
+  SELECT COALESCE(NULLIF(TRIM(sd.course), ''), NULLIF(TRIM(x.manual_course), '')) AS program,
+         sd.year_level AS year_level
+    FROM (
+      SELECT student_id,
+             DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d,
+             MAX(course) AS manual_course
+        FROM (${VISITS_SQL}) v
+       GROUP BY student_id, d
+    ) x
+    LEFT JOIN students_data sd ON sd.student_id = x.student_id
+   WHERE x.d BETWEEN ? AND ?
+`;
+
+router.get('/program-year', async (req, res, next) => {
+  try {
+    const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
+    const { from, to } = await resolveProgramRange(req.query, today);
+
+    let yearLevel = null;
+    if (req.query.year !== undefined && req.query.year !== '') {
+      if (typeof req.query.year !== 'string' || !/^[1-6]$/.test(req.query.year)) throw httpError(400, 'Invalid year level.');
+      yearLevel = Number(req.query.year);
+    }
+
+    const [rows, levels, left] = await Promise.all([
+      query(
+        `SELECT program, year_level, COUNT(*) AS visits
+           FROM (${PROGRAM_VISITS_SQL}) p
+          WHERE program IS NOT NULL ${yearLevel ? 'AND year_level = ?' : ''}
+          GROUP BY program, year_level
+          ORDER BY program, year_level`,
+        yearLevel ? [from, to, yearLevel] : [from, to]
+      ),
+      query('SELECT DISTINCT year_level FROM students_data ORDER BY year_level'),
+      query(`SELECT COUNT(*) AS n FROM (${PROGRAM_VISITS_SQL}) p WHERE program IS NULL`, [from, to]),
+    ]);
+
+    const cells = rows.map((r) => ({
+      program: r.program,
+      yearLevel: r.year_level === null ? null : Number(r.year_level),
+      visits: Number(r.visits),
+    }));
+
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      today,
+      from,
+      to,
+      yearLevel,
+      yearLevels: levels.map((l) => Number(l.year_level)),
+      total: cells.reduce((n, c) => n + c.visits, 0),
+      leftOut: Number(left[0].n),
+      rows: cells,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
