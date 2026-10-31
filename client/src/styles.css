@@ -1694,34 +1694,6 @@ a:hover {
   color: var(--muted);
 }
 
-/* Kiosk welcome notice: larger so it can be read from a distance */
-/* SweetAlert2 limits a toast container to 360px, which would clip the wider notice. */
-body.swal2-toast-shown .pcds-kiosk-toast-container.swal2-container {
-  width: min(100vw, 480px);
-}
-.pcds-kiosk-toast.swal2-popup.swal2-toast {
-  width: auto;
-  min-width: min(92vw, 420px);
-  max-width: min(92vw, 460px);
-  padding: 18px 26px 18px 20px;
-  border-radius: 16px;
-}
-.pcds-kiosk-toast .swal2-icon.swal2-success {
-  margin-right: 16px;
-}
-.pcds-kiosk-toast .pcds-swal-toast-title.swal2-title {
-  font-size: 1.5rem;
-  line-height: 1.25;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.pcds-kiosk-toast .pcds-swal-toast-text.swal2-html-container {
-  margin-top: 4px;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--ink);
-}
-
 /* ---------- Student search in the Manual Attendance form ---------- */
 .student-results-status {
   min-height: 1.25rem;

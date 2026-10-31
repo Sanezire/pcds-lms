@@ -355,3 +355,64 @@
   overflow-wrap: anywhere;
 }
 
+
+/* Scan notices: stacked at the top center, just under the header. The anchor has no
+   height and sits in the normal page flow, so the notices scroll with the page. */
+.kiosk-toasts {
+  position: relative;
+  height: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.kiosk-toasts ul {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 460px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.kiosk-toast {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px 16px 18px;
+  background: var(--white);
+  border: 1px solid var(--blue-200);
+  border-left: 5px solid var(--success);
+  border-radius: 16px;
+  box-shadow: 0 14px 30px -12px rgba(24, 86, 136, 0.4);
+  animation: kiosk-toast-in 0.2s ease-out;
+}
+.kiosk-toast-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid var(--success);
+  color: var(--success);
+}
+.kiosk-toast-icon svg { width: 24px; height: 24px; }
+.kiosk-toast-body { display: grid; gap: 4px; min-width: 0; text-align: left; }
+.kiosk-toast-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--blue-700);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.kiosk-toast-text { font-size: 1.25rem; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+@keyframes kiosk-toast-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .kiosk-toast { animation: none; } }

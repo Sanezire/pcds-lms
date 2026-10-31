@@ -1,11 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, kioskKey } from '../api.js';
 import { useLiveReload } from '../live.js';
-import { showWelcomeToast } from '../toast.js';
+import { WELCOME_TEXT, GOODBYE_TEXT } from '../toast.js';
 import '../kiosk.css';
 
 const LOGO_SRC = '/images/pcds_logo.png';
 
+const TOAST_MS = 5000; // how long each scan notice stays
+const MAX_TOASTS = 5; // more than this at once and the oldest notice is dropped (first in, first out)
 const SUCCESS_MS = 5000; // how long a successful result stays on screen
 const ERROR_MS = 4000; // how long an error stays on screen
 const KEY_GAP_MS = 250; // card readers type fast; a longer pause starts a new scan
@@ -75,6 +77,25 @@ function Icon({ name }) {
   );
 }
 
+// One scan notice. It removes itself after TOAST_MS.
+function ScanToast({ id, title, text, onGone }) {
+  useEffect(() => {
+    const timer = setTimeout(() => onGone(id), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [id, onGone]);
+  return (
+    <li className="kiosk-toast">
+      <span className="kiosk-toast-icon">
+        <Icon name="check" />
+      </span>
+      <span className="kiosk-toast-body">
+        <span className="kiosk-toast-title">{title}</span>
+        <span className="kiosk-toast-text">{text}</span>
+      </span>
+    </li>
+  );
+}
+
 // Message box above the tap instruction. While it shows it replaces the
 // "Library Attendance" title, which comes back when the message is removed. A message sent from the dashboard
 // shows for 5 seconds and then goes away by itself; a kept message stays
@@ -134,6 +155,9 @@ export default function Kiosk() {
   const [pinned, setPinned] = useState(null); // text of the message kept on screen, or null
 
   const busyRef = useRef(false);
+  const [toasts, setToasts] = useState([]);
+  const toastId = useRef(0);
+  const removeToast = useCallback((id) => setToasts((list) => list.filter((t) => t.id !== id)), []);
   const clearTimer = useRef(null);
 
   const backToReady = useCallback(() => {
@@ -179,7 +203,11 @@ export default function Kiosk() {
         setPhase('success');
         // Welcome (Time In) or goodbye (Time Out) notice with the student's ID (from the account, not the card
         // number). An ID with its own message shows that instead of the welcome line.
-        showWelcomeToast(data.attendance.studentId, data.message, data.attendance.action);
+        const line = data.message || (data.attendance.action === 'out' ? GOODBYE_TEXT : WELCOME_TEXT);
+        toastId.current += 1;
+        const toast = { id: toastId.current, title: line, text: data.attendance.studentId };
+        // Newest goes last; when over the limit the oldest are dropped from the top.
+        setToasts((list) => [...list, toast].slice(-MAX_TOASTS));
         scheduleClear(SUCCESS_MS);
       } catch (err) {
         showError(errorMessage(err));
@@ -333,6 +361,15 @@ export default function Kiosk() {
         </div>
         <LiveClock />
       </header>
+
+      {/* Zero-height anchor right under the header, so the notices scroll with the page. */}
+      <div className="kiosk-toasts" role="status" aria-live="polite">
+        <ul>
+          {toasts.map((t) => (
+            <ScanToast key={t.id} id={t.id} title={t.title} text={t.text} onGone={removeToast} />
+          ))}
+        </ul>
+      </div>
 
       <main className="kiosk-main">
         <img className="kiosk-logo" src={LOGO_SRC} alt="Polytechnic College of Davao del Sur seal" />
