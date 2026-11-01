@@ -1,30 +1,20 @@
 import { useAuth } from '../auth/AuthContext.jsx';
 import { MANAGER_ROLES } from '../auth/roles.js';
+import { DashboardGreeting, SummaryTiles, useDashboardSummary } from '../components/DashboardSummary.jsx';
 import ManualAttendance from '../components/ManualAttendance.jsx';
 import MessageConfiguration from '../components/MessageConfiguration.jsx';
 
-const ROLE_COPY = {
-  super_admin: 'You have full access to the PCDS LRC, including the audit log.',
-  student_assistant: 'You can record manual attendance for students without RFID cards.',
-  admin: 'You have administrator access to the PCDS LRC.',
-  librarian: 'You can run the PCDS LRC.',
-  student: 'Your account is active. Kiosk features will appear here.',
-};
-
 export default function Dashboard() {
   const { user } = useAuth();
+  const summary = useDashboardSummary();
   const firstName = user.fullName.split(' ')[0];
-  // Student assistants (SA) only get Manual Attendance; everything else is for managers.
   const canRecordAttendance = MANAGER_ROLES.includes(user.role) || user.role === 'student_assistant';
   const canManage = MANAGER_ROLES.includes(user.role);
 
   return (
     <div className="dashboard">
-      <header className="dashboard-head">
-        <h1>Welcome, {firstName}</h1>
-        <p className="lead">{ROLE_COPY[user.role]}</p>
-      </header>
-
+      <DashboardGreeting name={firstName} summary={summary} />
+      <SummaryTiles summary={summary} />
       {canRecordAttendance && <ManualAttendance />}
       {canManage && <MessageConfiguration />}
     </div>

@@ -15,13 +15,14 @@ function pageList(current, total) {
   return out;
 }
 
-export default function Pagination({ page, totalPages, pageSize, total, onPage, onPageSize, label = 'Pages' }) {
+export default function Pagination({ page, totalPages, pageSize, total, onPage, onPageSize, label = 'Pages', nouns }) {
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
   return (
     <nav className="pager" aria-label={label}>
       <p className="muted pager-info" role="status">
         Showing {first}–{last} of {total}
+        {nouns ? ` ${total === 1 ? nouns[0] : nouns[1]}` : ''}
       </p>
       <div className="pager-controls">
         <label className="pager-size">

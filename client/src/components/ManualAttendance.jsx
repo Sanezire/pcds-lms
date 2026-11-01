@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { Field } from './Field.jsx';
 import IconButton from './IconButton.jsx';
 import Modal from './Modal.jsx';
+import Pagination from './Pagination.jsx';
+import { formatMinutes } from '../durations.js';
 import { confirmDelete } from '../confirm.js';
 import { showSuccessToast } from '../toast.js';
 import { YEAR_LEVELS, yearLabel } from '../yearLevels.js';
@@ -24,10 +26,11 @@ const GENDERS = [
   { value: 'other', label: 'Other' },
 ];
 
-const PREVIEW_COUNT = 4;
-
 const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 const formatTime = (iso) => (iso ? fmt.format(new Date(iso)) : '');
+const clockFmt = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+const formatClock = (iso) => (iso ? clockFmt.format(new Date(iso)) : '–');
+const dayLong = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const genderLabel = (v) => GENDERS.find((g) => g.value === v)?.label || v;
 
 function validate(v) {
@@ -272,164 +275,6 @@ function StudentSearch({ onPick }) {
   );
 }
 
-function RecordButton({ record: r, onClick }) {
-  return (
-    <button type="button" className="record" onClick={onClick}>
-      <span className="record-main">
-        <span className="record-name">{r.name}</span>
-        <span className="record-sub">
-          {r.studentId} · {r.course}
-          {r.yearLevel ? ` · ${yearLabel(r.yearLevel)}` : ''}
-        </span>
-      </span>
-      <span className="record-times">
-        <span>In {formatTime(r.timeIn)}</span>
-        {r.timeOut && <span>Out {formatTime(r.timeOut)}</span>}
-      </span>
-      <span className={`status ${r.timeOut ? 'status-out' : 'status-in'}`}>{r.timeOut ? 'Timed out' : 'Timed in'}</span>
-    </button>
-  );
-}
-
-// One entry: the record itself plus its Edit and Delete buttons.
-function RecordRow({ record: r, busy, onOpen, onEdit, onDelete }) {
-  return (
-    <li className="record-row">
-      <RecordButton record={r} onClick={onOpen} />
-      <div className="record-actions">
-        <IconButton kind="edit" label={`Edit ${r.name}`} onClick={onEdit} />
-        <IconButton kind="delete" label={`Delete ${r.name}`} onClick={onDelete} disabled={busy} />
-      </div>
-    </li>
-  );
-}
-
-// Every manual entry, with search and filters. Choosing one does the same as
-// choosing an entry in the panel: it opens that record so staff can Time Out.
-function AllRecords({ records, busyId, onSelect, onEdit, onDelete, onClose }) {
-  const searchId = useId();
-  const courseId = useId();
-  const genderId = useId();
-  const yearId = useId();
-  const [search, setSearch] = useState('');
-  const [course, setCourse] = useState('');
-  const [year, setYear] = useState('');
-  const [gender, setGender] = useState('');
-
-  const courses = useMemo(() => [...new Set(records.map((r) => r.course))].sort((a, b) => a.localeCompare(b)), [records]);
-
-  const term = search.trim().toLowerCase();
-  const filtered = records.filter(
-    (r) =>
-      (!course || r.course === course) &&
-      (!year || String(r.yearLevel) === year) &&
-      (!gender || r.gender === gender) &&
-      (!term || r.name.toLowerCase().includes(term) || r.studentId.toLowerCase().includes(term))
-  );
-  const filtering = Boolean(term || course || year || gender);
-
-  function clear() {
-    setSearch('');
-    setCourse('');
-    setYear('');
-    setGender('');
-  }
-
-  return (
-    <Modal title="All manual attendance" className="modal-wide" onClose={onClose}>
-      <p className="modal-note">Select a student to view their record or record a Time Out.</p>
-      <div className="all-filters">
-        <div className="field all-search">
-          <label htmlFor={searchId}>Search</label>
-          <div className="input-wrap">
-            <input
-              id={searchId}
-              type="search"
-              autoComplete="off"
-              placeholder="Name or student ID"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor={courseId}>Course</label>
-          <div className="input-wrap">
-            <select id={courseId} className="field-select" value={course} onChange={(e) => setCourse(e.target.value)}>
-              <option value="">All courses</option>
-              {courses.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor={yearId}>Year level</label>
-          <div className="input-wrap">
-            <select id={yearId} className="field-select" value={year} onChange={(e) => setYear(e.target.value)}>
-              <option value="">All year levels</option>
-              {YEAR_LEVELS.map((y) => (
-                <option key={y} value={y}>
-                  {yearLabel(y)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor={genderId}>Gender</label>
-          <div className="input-wrap">
-            <select id={genderId} className="field-select" value={gender} onChange={(e) => setGender(e.target.value)}>
-              <option value="">All genders</option>
-              {GENDERS.map((g) => (
-                <option key={g.value} value={g.value}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="all-summary" role="status">
-        <span className="muted">
-          Showing {filtered.length} of {records.length}
-        </span>
-        {filtering && (
-          <button type="button" className="btn btn-quiet" onClick={clear}>
-            Clear filters
-          </button>
-        )}
-      </div>
-
-      {filtered.length === 0 ? (
-        <p className="empty">No students match your search.</p>
-      ) : (
-        <ul className="record-list all-list">
-          {filtered.map((r) => (
-            <RecordRow
-              key={r.id}
-              record={r}
-              busy={busyId === r.id}
-              onOpen={() => onSelect(r.id)}
-              onEdit={() => onEdit(r.id)}
-              onDelete={() => onDelete(r)}
-            />
-          ))}
-        </ul>
-      )}
-
-      <div className="modal-actions">
-        <button type="button" className="btn btn-quiet btn-lg" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
 function RecordDetails({ record, onTimedOut, onClose }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -500,37 +345,237 @@ function RecordDetails({ record, onTimedOut, onClose }) {
   );
 }
 
-export default function ManualAttendance() {
-  const [records, setRecords] = useState(null);
-  const [loadError, setLoadError] = useState('');
-  const [modal, setModal] = useState(null); // { type: 'new' } | { type: 'record', id } | { type: 'edit', id }
-  const [showAll, setShowAll] = useState(false);
-  const [busyId, setBusyId] = useState(null);
+const STATUSES = [
+  { value: 'all', label: 'All' },
+  { value: 'in', label: 'Timed in' },
+  { value: 'out', label: 'Timed out' },
+];
 
-  const load = useCallback(async () => {
-    try {
-      const data = await api('/manual-attendance');
-      setRecords(data.records);
-      setLoadError('');
-    } catch (err) {
-      setLoadError(err.message);
-    }
-  }, []);
+const dayBefore = (key) => new Date(new Date(`${key}T00:00:00Z`).getTime() - 86400000).toISOString().slice(0, 10);
+
+function dayHeading(day, today) {
+  if (day === today) return 'Today';
+  if (day === dayBefore(today)) return 'Yesterday';
+  return dayLong.format(new Date(`${day}T00:00:00Z`));
+}
+
+export function groupByDay(records) {
+  const groups = [];
+  for (const r of records) {
+    const last = groups[groups.length - 1];
+    if (last && last.day === r.day) last.records.push(r);
+    else groups.push({ day: r.day, records: [r] });
+  }
+  return groups;
+}
+
+const stayOf = (r) => (r.timeOut ? formatMinutes((new Date(r.timeOut) - new Date(r.timeIn)) / 60000) : '–');
+
+function RowMenu({ name, onDelete, disabled }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+  const trigger = useRef(null);
+  const item = useRef(null);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!open) return undefined;
+    item.current?.focus();
+    const onDown = (e) => {
+      if (!wrap.current?.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        trigger.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
-  useLiveReload(['attendance'], load);
+  return (
+    <div
+      className="row-menu"
+      ref={wrap}
+      onBlur={(e) => {
+        if (!wrap.current?.contains(e.relatedTarget)) setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        ref={trigger}
+        className="icon-btn row-menu-trigger"
+        aria-label={`More actions for ${name}`}
+        title="More actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+      >
+        <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+          <circle cx="4" cy="10" r="1.7" fill="currentColor" />
+          <circle cx="10" cy="10" r="1.7" fill="currentColor" />
+          <circle cx="16" cy="10" r="1.7" fill="currentColor" />
+        </svg>
+      </button>
+      {open && (
+        <ul className="row-menu-list" role="menu">
+          <li role="none">
+            <button
+              type="button"
+              role="menuitem"
+              ref={item}
+              className="row-menu-item"
+              onClick={() => {
+                setOpen(false);
+                onDelete();
+              }}
+            >
+              Delete…
+            </button>
+          </li>
+        </ul>
+      )}
+    </div>
+  );
+}
 
+function Cell({ label, value, className }) {
+  return (
+    <span className={`cell ${className}`}>
+      <span className="cell-label">{label}</span>
+      <span className="cell-value">{value}</span>
+    </span>
+  );
+}
+
+export function EntryRow({ record: r, busy, onOpen, onEdit, onDelete }) {
+  const inside = !r.timeOut;
+  return (
+    <li
+      className="entry"
+      onClick={(e) => {
+        if (!e.target.closest('.entry-actions, .entry-name')) onOpen();
+      }}
+    >
+      <div className="entry-student">
+        <button type="button" className="entry-name" onClick={onOpen}>
+          {r.name}
+        </button>
+        <span className="entry-sub">
+          {r.studentId} · {r.course}
+          {r.yearLevel ? ` · ${yearLabel(r.yearLevel)}` : ''}
+        </span>
+      </div>
+      <Cell className="cell-in" label="In" value={formatClock(r.timeIn)} />
+      <Cell className="cell-out" label="Out" value={formatClock(r.timeOut)} />
+      <Cell className="cell-stay" label="Stay" value={stayOf(r)} />
+      <span className="entry-state">
+        <span className={`status ${inside ? 'status-in' : 'status-muted'}`}>{inside ? 'Timed in' : 'Timed out'}</span>
+      </span>
+      <div className="entry-actions">
+        <IconButton kind="edit" label={`Edit ${r.name}`} onClick={onEdit} />
+        <RowMenu name={r.name} onDelete={onDelete} disabled={busy} />
+      </div>
+    </li>
+  );
+}
+
+export function EntryGroups({ groups, dayCounts, today, busyId, onOpen, onEdit, onDelete }) {
+  return groups.map((g) => {
+    const count = dayCounts[g.day] ?? g.records.length;
+    return (
+      <section className="entry-group" key={g.day} aria-labelledby={`entry-day-${g.day}`}>
+        <h3 className="entry-day" id={`entry-day-${g.day}`}>
+          <span>{dayHeading(g.day, today)}</span>
+          <span className="entry-count">
+            {count} {count === 1 ? 'entry' : 'entries'}
+          </span>
+        </h3>
+        <ul className="entry-list">
+          {g.records.map((r) => (
+            <EntryRow
+              key={r.id}
+              record={r}
+              busy={busyId === r.id}
+              onOpen={() => onOpen(r.id)}
+              onEdit={() => onEdit(r.id)}
+              onDelete={() => onDelete(r)}
+            />
+          ))}
+        </ul>
+      </section>
+    );
+  });
+}
+
+export default function ManualAttendance() {
+  const searchId = useId();
+  const dateId = useId();
+  const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [modal, setModal] = useState(null); // { type: 'new' } | { type: 'record', id } | { type: 'edit', id }
+  const [busyId, setBusyId] = useState(null);
+  const [search, setSearch] = useState('');
+  const [term, setTerm] = useState('');
+  const [status, setStatus] = useState('all');
+  const [date, setDate] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const latest = useRef(0);
+  const quiet = useRef(false);
+  const topRef = useRef(null);
+
+  useEffect(() => {
+    const next = search.trim();
+    if (next === term) return undefined;
+    const timer = setTimeout(() => {
+      setTerm(next);
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search, term]);
+
+  useEffect(() => {
+    const id = ++latest.current;
+    const silent = quiet.current;
+    quiet.current = false;
+    const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (term) qs.set('search', term);
+    if (status !== 'all') qs.set('status', status);
+    if (date) qs.set('date', date);
+    api(`/manual-attendance?${qs}`)
+      .then((r) => {
+        if (id !== latest.current) return;
+        setData(r);
+        setLoadError('');
+        if (r.page !== page) setPage(r.page);
+      })
+      .catch((err) => {
+        if (id === latest.current && !silent) setLoadError(err.message);
+      });
+  }, [term, status, date, page, pageSize, refreshKey]);
+
+  const reload = useCallback(() => setRefreshKey((k) => k + 1), []);
+  useLiveReload(['attendance'], () => {
+    quiet.current = true;
+    reload();
+  });
+
+  const records = data?.records;
   const selected = modal?.type === 'record' ? records?.find((r) => r.id === modal.id) : null;
   const editing = modal?.type === 'edit' ? records?.find((r) => r.id === modal.id) : null;
   const close = () => setModal(null);
+  const filtering = Boolean(term || status !== 'all' || date);
 
-  // Reload from the server so the list order and statuses always match the database.
   const saved = (message) => (record) => {
     close();
-    load();
+    reload();
     showSuccessToast(message, record?.name);
   };
 
@@ -544,20 +589,37 @@ export default function ManualAttendance() {
     try {
       await api(`/manual-attendance/${r.id}`, { method: 'DELETE' });
       if (modal?.id === r.id) close();
-      await load();
+      reload();
       showSuccessToast('Record deleted', r.name);
     } catch (err) {
-      // Already gone (for example deleted on another screen): just refresh.
       if (err.status !== 404) setLoadError(err.message);
-      await load();
+      reload();
     } finally {
       setBusyId(null);
     }
   }
 
+  function clearFilters() {
+    setSearch('');
+    setTerm('');
+    setStatus('all');
+    setDate('');
+    setPage(1);
+  }
+
+  function chooseStatus(value) {
+    setStatus(value);
+    setPage(1);
+  }
+
+  function goToPage(n) {
+    setPage(n);
+    topRef.current?.scrollIntoView({ block: 'start' });
+  }
+
   return (
     <section className="panel" aria-labelledby="manual-h">
-      <div className="panel-head">
+      <div className="panel-head" ref={topRef}>
         <div>
           <h2 id="manual-h" className="title-with-icon">
             <img className="title-icon" src="/images/manual_attendance_icon.png" alt="" />
@@ -571,52 +633,111 @@ export default function ManualAttendance() {
         </button>
       </div>
 
+      <div className="entry-bar">
+        <div className="entry-filters">
+          <div className="field entry-search">
+            <label htmlFor={searchId}>Search</label>
+            <div className="input-wrap">
+              <input
+                id={searchId}
+                type="search"
+                autoComplete="off"
+                placeholder="Name or student ID"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="entry-status-filter" role="group" aria-label="Show entries">
+            <span className="entry-filter-label" aria-hidden="true">
+              Status
+            </span>
+            <div className="seg">
+              {STATUSES.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  className={`seg-btn${status === s.value ? ' is-active' : ''}`}
+                  aria-pressed={status === s.value}
+                  onClick={() => chooseStatus(s.value)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field entry-date">
+            <label htmlFor={dateId}>Date</label>
+            <div className="input-wrap">
+              <input
+                id={dateId}
+                type="date"
+                value={date}
+                max={data?.today}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </div>
+          </div>
+          {filtering && (
+            <button type="button" className="btn btn-quiet entry-clear" onClick={clearFilters}>
+              Clear filters
+            </button>
+          )}
+        </div>
+        <div className="entry-head" aria-hidden="true">
+          <span>Student</span>
+          <span>In</span>
+          <span>Out</span>
+          <span>Stay</span>
+          <span>Status</span>
+          <span />
+        </div>
+      </div>
+
       {loadError && (
         <div className="alert alert-error" role="alert">
           {loadError}
         </div>
       )}
 
-      {!records && !loadError && <p className="muted">Loading records…</p>}
+      {!data && !loadError && <p className="muted">Loading records…</p>}
 
       {records && records.length === 0 && (
-        <p className="empty">No manual entries yet. Add a student to record their Time In.</p>
+        <p className="empty">
+          {filtering ? 'No entries match your search or filters.' : 'No manual entries yet. Add a student to record their Time In.'}
+        </p>
       )}
 
       {records && records.length > 0 && (
         <>
-          <ul className="record-list">
-            {records.slice(0, PREVIEW_COUNT).map((r) => (
-              <RecordRow
-                key={r.id}
-                record={r}
-                busy={busyId === r.id}
-                onOpen={() => setModal({ type: 'record', id: r.id })}
-                onEdit={() => setModal({ type: 'edit', id: r.id })}
-                onDelete={() => remove(r)}
-              />
-            ))}
-          </ul>
-          {records.length > PREVIEW_COUNT && (
-            <div className="view-all">
-              <button type="button" className="btn btn-quiet btn-lg" onClick={() => setShowAll(true)}>
-                View all {records.length} students
-              </button>
-            </div>
-          )}
+          <EntryGroups
+            groups={groupByDay(records)}
+            dayCounts={data.dayCounts}
+            today={data.today}
+            busyId={busyId}
+            onOpen={(id) => setModal({ type: 'record', id })}
+            onEdit={(id) => setModal({ type: 'edit', id })}
+            onDelete={remove}
+          />
+          <Pagination
+            page={data.page}
+            totalPages={data.totalPages}
+            pageSize={data.pageSize}
+            total={data.total}
+            onPage={goToPage}
+            onPageSize={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+            label="Manual attendance pages"
+            nouns={['entry', 'entries']}
+          />
         </>
       )}
 
-      {showAll && records && (
-        <AllRecords
-          records={records}
-          busyId={busyId}
-          onSelect={(id) => setModal({ type: 'record', id })}
-          onEdit={(id) => setModal({ type: 'edit', id })}
-          onDelete={remove}
-          onClose={() => setShowAll(false)}
-        />
-      )}
       {modal?.type === 'new' && (
         <Modal title="Manual Attendance" onClose={close}>
           <NewEntryForm onSaved={saved('Time In recorded')} onClose={close} />

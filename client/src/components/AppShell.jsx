@@ -26,12 +26,20 @@ export default function AppShell() {
           {canManage && <NavLink to="/statistics">Statistics</NavLink>}
           {canManage && <NavLink to="/students">Students</NavLink>}
           {isSuperAdmin && <NavLink to="/audit-logs">Audit Logs</NavLink>}
-          {canManage && <NavLink to="/kiosk">Kiosk</NavLink>}
+          {canManage && (
+            <a href="/kiosk" target="_blank" rel="noopener noreferrer" className="nav-external">
+              Kiosk
+              <svg className="nav-external-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+                <path d="M6.5 3H13v6.5M13 3 5.5 10.5M11 13H3V5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="sr-only">(opens in a new tab)</span>
+            </a>
+          )}
         </nav>
-        <div className="topbar-user">
+        <div className="user-pill" role="group" aria-label="Account">
           <span className="user-name">{user.fullName}</span>
           <span className={`role-badge role-${user.role}`}>{roleLabel(user.role)}</span>
-          <button className="btn btn-quiet" onClick={onLogout}>
+          <button type="button" className="user-signout" onClick={onLogout}>
             Sign out
           </button>
         </div>

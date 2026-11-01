@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { ATTENDANCE_ROLES } from '../config.js';
+import { ATTENDANCE_ROLES, config } from '../config.js';
 import { recordAudit } from '../audit.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { validateManualAttendance } from '../validation.js';
@@ -69,16 +69,91 @@ router.get('/students', async (req, res, next) => {
   }
 });
 
-// Students still in come first, then the most recent visits.
+const PAGE_SIZES = [10, 25, 50, 100];
+const OFFSET_MIN = Math.trunc(config.attendance.utcOffsetMinutes);
+const DAY_SQL = `DATE_FORMAT(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE), '%Y-%m-%d')`;
+
+function listFilters(q) {
+  const where = [];
+  const params = [];
+
+  const search = typeof q.search === 'string' ? q.search.trim().replace(/\s+/g, ' ').slice(0, 60) : '';
+  if (search) {
+    const like = `%${search.replace(/[|%_]/g, '|$&')}%`;
+    where.push(`(student_name LIKE ? ESCAPE '|' OR student_id LIKE ? ESCAPE '|')`);
+    params.push(like, like);
+  }
+
+  const status = q.status ?? 'all';
+  if (!['all', 'in', 'out'].includes(status)) throw httpError(400, 'Invalid status.');
+  if (status === 'in') where.push('time_out IS NULL');
+  if (status === 'out') where.push('time_out IS NOT NULL');
+
+  if (q.date !== undefined && q.date !== '') {
+    const ok = typeof q.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(q.date) && !Number.isNaN(Date.parse(`${q.date}T00:00:00Z`));
+    if (!ok) throw httpError(400, 'Invalid date.');
+    where.push(`${DAY_SQL} = ?`);
+    params.push(q.date);
+  }
+
+  return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+}
+
+function listPaging(q) {
+  let pageSize = 25;
+  if (q.pageSize !== undefined && q.pageSize !== '') {
+    pageSize = typeof q.pageSize === 'string' && /^\d{1,3}$/.test(q.pageSize) ? Number(q.pageSize) : 0;
+    if (!PAGE_SIZES.includes(pageSize)) throw httpError(400, 'Invalid page size.');
+  }
+  let page = 1;
+  if (q.page !== undefined && q.page !== '') {
+    page = typeof q.page === 'string' && /^\d{1,7}$/.test(q.page) ? Number(q.page) : 0;
+    if (page < 1) throw httpError(400, 'Invalid page.');
+  }
+  return { page, pageSize };
+}
+
 router.get('/', async (req, res, next) => {
   try {
+    const { clause, params } = listFilters(req.query);
+    const { page: wanted, pageSize } = listPaging(req.query);
+
+    const counted = await query(`SELECT COUNT(*) AS total FROM manual_attendance ${clause}`, params);
+    const total = Number(counted[0].total);
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+    const page = Math.min(wanted, totalPages);
+
     const rows = await query(
-      `SELECT ${COLUMNS} FROM manual_attendance
-        ORDER BY (time_out IS NULL) DESC, time_in DESC, id DESC
-        LIMIT 200`
+      `SELECT ${COLUMNS}, ${DAY_SQL} AS day FROM manual_attendance ${clause}
+        ORDER BY time_in DESC, id DESC
+        LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
+      params
     );
+
+    const days = [...new Set(rows.map((r) => r.day))];
+    const dayCounts = {};
+    if (days.length) {
+      const perDay = await query(
+        `SELECT ${DAY_SQL} AS day, COUNT(*) AS entries FROM manual_attendance ${clause}
+          ${clause ? 'AND' : 'WHERE'} ${DAY_SQL} IN (${days.map(() => '?').join(',')})
+          GROUP BY day`,
+        [...params, ...days]
+      );
+      perDay.forEach((d) => {
+        dayCounts[d.day] = Number(d.entries);
+      });
+    }
+
     res.set('Cache-Control', 'no-store');
-    res.json({ records: rows.map(toRecord) });
+    res.json({
+      today: new Date(Date.now() + OFFSET_MIN * 60 * 1000).toISOString().slice(0, 10),
+      records: rows.map((r) => ({ ...toRecord(r), day: r.day })),
+      dayCounts,
+      total,
+      page,
+      pageSize,
+      totalPages,
+    });
   } catch (err) {
     next(err);
   }
