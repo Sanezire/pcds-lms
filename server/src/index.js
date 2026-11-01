@@ -14,6 +14,7 @@ import studentRoutes from './routes/students.js';
 import auditLogRoutes from './routes/auditLogs.js';
 import { ensureSchema } from './migrate.js';
 import statisticsRoutes from './routes/statistics.js';
+import reportRoutes from './routes/reports.js';
 import messageRoutes from './routes/messages.js';
 import eventRoutes, { kioskStreamRouter, closeAllClients } from './events.js';
 
@@ -34,6 +35,8 @@ app.use(
 // CSV imports are larger than any other request, so that one path gets a bigger
 // body limit (still rate limited); every other path keeps the small one.
 app.use('/api/students/import', apiLimiter, express.json({ limit: '1mb' }));
+// An export can carry a long list of chosen programs, so it gets a larger body limit.
+app.use('/api/reports', express.json({ limit: '64kb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 
@@ -51,6 +54,7 @@ app.use('/api/manual-attendance', manualAttendanceRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/statistics', statisticsRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/messages', messageRoutes);
 
 app.use('/api', (req, res) => {

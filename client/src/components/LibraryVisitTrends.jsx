@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
+import ExportMenu from './ExportMenu.jsx';
 
 const REPORTS = [
   { value: 'daily', label: 'Daily summary' },
@@ -369,6 +370,16 @@ export default function LibraryVisitTrends() {
   }
   const rowLabel = g === 'day' ? 'Date' : g === 'year' ? 'Year' : 'Month';
 
+  // What the report is made from: the selection behind the data on screen.
+  let exportFilters = null;
+  if (current && ready) {
+    exportFilters = { report, chartType: type };
+    if (report === 'daily') exportFilters.month = current.label;
+    if (report === 'monthly') exportFilters.year = current.label;
+    if (report === 'compare') exportFilters.years = current.series.map((s) => String(s.year));
+    if (report === 'custom') Object.assign(exportFilters, { from: current.from, to: current.to });
+  }
+
   return (
     <section className="panel trends" aria-labelledby="trends-h" aria-busy={loading}>
       <div className="table-head">
@@ -379,6 +390,7 @@ export default function LibraryVisitTrends() {
             counts, or compare years. A student counts once per day.
           </p>
         </div>
+        <ExportMenu chart="trends" filters={exportFilters} />
       </div>
 
       <div className="analytics-controls">

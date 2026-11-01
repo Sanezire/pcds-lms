@@ -24,6 +24,7 @@ const ACTION_LABELS = {
   'message.broadcast_delete': 'Kiosk message deleted',
   'message.pin': 'Kiosk message kept',
   'message.unpin': 'Kept message removed',
+  'report.export': 'Analytics report exported',
   'audit.delete': 'Audit logs deleted',
 };
 const CATEGORIES = [
@@ -33,6 +34,7 @@ const CATEGORIES = [
   { value: 'attendance', label: 'Manual attendance' },
   { value: 'student', label: 'Student records' },
   { value: 'message', label: 'Kiosk messages' },
+  { value: 'report', label: 'Analytics exports' },
   { value: 'audit', label: 'Audit log deletions' },
 ];
 const ROLE_FILTERS = [

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
+import ExportMenu from './ExportMenu.jsx';
 
 const PERIODS = [
   { value: 'last7', label: 'Last 7 days' },
@@ -144,6 +145,7 @@ export default function Analytics() {
       ]
     : [];
   const hasVisits = data && data.periodTotal > 0;
+  const exportFilters = data && customReady && !customError ? { range: period, ...(period === 'custom' ? { from, to } : {}) } : null;
 
   return (
     <section className="panel analytics" aria-labelledby="visits-h" aria-busy={loading}>
@@ -155,6 +157,7 @@ export default function Analytics() {
             in one day counts as one visit.
           </p>
         </div>
+        <ExportMenu chart="summary" filters={exportFilters} />
       </div>
 
       <div className="analytics-controls">

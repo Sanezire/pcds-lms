@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
+import ExportMenu from './ExportMenu.jsx';
 import { yearLabel } from '../yearLevels.js';
 
 const PERIODS = [
@@ -175,6 +176,18 @@ export default function ProgramYearVisits() {
   const bottom = view && view.programs.length > 1 ? view.programs[view.programs.length - 1] : null;
   const topYear = view?.years.length ? view.years.reduce((a, b) => (b.visits > a.visits ? b : a)) : null;
   const levels = view ? view.years.map((y) => y.level) : [];
+  const exportFilters =
+    data && view && customReady && !customError && total > 0
+      ? { range: period, ...(period === 'custom' ? { from, to } : {}), ...(year ? { year } : {}) }
+      : null;
+  // What the dialog offers: the programs and year levels in the figures on screen.
+  const choices =
+    view && total > 0
+      ? {
+          programs: view.programs.map((p) => p.program).sort((a, b) => a.localeCompare(b)),
+          years: view.years.map((y) => ({ value: y.level === null ? 'none' : String(y.level), label: yearLabel(y.level) })),
+        }
+      : null;
   const periodLabel = data ? `${dayMedium.format(dateOf(data.from))} to ${dayMedium.format(dateOf(data.to))}` : '';
 
   return (
@@ -187,6 +200,7 @@ export default function ProgramYearVisits() {
             the program and year level on their student record.
           </p>
         </div>
+        <ExportMenu chart="programs" filters={exportFilters} choices={choices} />
       </div>
 
       <div className="analytics-controls">

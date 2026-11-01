@@ -65,12 +65,14 @@ export async function api(path, { method = 'GET', body } = {}) {
 }
 
 // Fetches a file (CSV, PDF) with the session cookie and returns it as a Blob.
-export async function download(path) {
+export async function download(path, { method = 'GET', body } = {}) {
   let res;
   try {
     res = await fetch(`/api${path}`, {
+      method,
       credentials: 'include',
-      headers: { 'X-Requested-With': 'pcds-lms' },
+      headers: { 'X-Requested-With': 'pcds-lms', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
     throw new ApiError('Cannot reach the server. Check your connection and try again.', 0);
