@@ -211,7 +211,7 @@ export default function PeakUsage() {
           {hasVisits ? (
             <TrendChart
               type="bar"
-              series={[{ name: 'Visits', color: '#2f7fc1', buckets: view.rows.map((r) => ({ key: r.key, visits: r.visits, future: false })) }]}
+              series={[{ name: 'Visits', color: 'var(--series-1)', buckets: view.rows.map((r) => ({ key: r.key, visits: r.visits, future: false })) }]}
               axisLabel={view.axis}
               tipTitle={view.tip}
               ariaLabel={`Bar chart. ${view.title}. Full numbers are in the table below.`}

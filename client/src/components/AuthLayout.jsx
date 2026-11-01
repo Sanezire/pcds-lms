@@ -1,6 +1,9 @@
+import ThemeToggle from './ThemeToggle.jsx';
+
 export function BrandMark({ size = 36 }) {
   return (
     <img
+      className="brand-mark"
       src="/images/pcds_logo.png"
       alt=""
       width={size}
@@ -119,6 +122,7 @@ function CampusScene() {
 export default function AuthLayout({ title, subtitle, children, footer }) {
   return (
     <div className="auth">
+      <ThemeToggle className="theme-toggle-floating" />
       <section className="auth-hero">
         <div className="auth-brand">
           <BrandMark size={72} />

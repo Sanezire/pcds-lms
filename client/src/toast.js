@@ -7,7 +7,6 @@ const toast = Swal.mixin({
   position: 'top-end',
   showConfirmButton: false,
   timer: 3000,
-  iconColor: '#17653f',
   customClass: {
     popup: 'pcds-swal-toast',
     title: 'pcds-swal-toast-title',
@@ -25,10 +24,14 @@ const toast = Swal.mixin({
 export const WELCOME_TEXT = 'Welcome to PCDS LRC';
 export const GOODBYE_TEXT = 'Goodbye, see you again';
 
+function themeColor(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined;
+}
+
 export function showSuccessToast(title, text) {
-  return toast.fire({ icon: 'success', title, text });
+  return toast.fire({ icon: 'success', title, text, iconColor: themeColor('--success') });
 }
 
 export function showErrorToast(title, text) {
-  return toast.fire({ icon: 'error', title, text, iconColor: '#a12b24', timer: 5000 });
+  return toast.fire({ icon: 'error', title, text, iconColor: themeColor('--danger'), timer: 5000 });
 }

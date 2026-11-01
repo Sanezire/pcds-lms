@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { BrandMark } from './AuthLayout.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 import { MANAGER_ROLES, roleLabel } from '../auth/roles.js';
 
 export default function AppShell() {
@@ -37,6 +38,7 @@ export default function AppShell() {
           )}
         </nav>
         <div className="user-pill" role="group" aria-label="Account">
+          <ThemeToggle />
           <span className="user-name">{user.fullName}</span>
           <span className={`role-badge role-${user.role}`}>{roleLabel(user.role)}</span>
           <button type="button" className="user-signout" onClick={onLogout}>

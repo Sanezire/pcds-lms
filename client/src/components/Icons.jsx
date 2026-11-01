@@ -64,3 +64,16 @@ export const DownloadIcon = (props) => (
     <path d="M12 4v11M7.5 11 12 15.5 16.5 11M5 19.5h14" />
   </svg>
 );
+
+export const SunIcon = (props) => (
+  <svg {...base} {...props}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6" />
+  </svg>
+);
+
+export const MoonIcon = (props) => (
+  <svg {...base} {...props}>
+    <path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.6 8.6 0 1 0 10.7 10.7Z" />
+  </svg>
+);

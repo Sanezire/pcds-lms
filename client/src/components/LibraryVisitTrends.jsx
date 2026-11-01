@@ -11,7 +11,7 @@ const REPORTS = [
   { value: 'custom', label: 'Custom date range' },
 ];
 const MAX_COMPARE = 4;
-const SERIES_COLORS = ['#2f7fc1', '#d9822b', '#1f9d8a', '#7a5cc0'];
+const SERIES_COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
 const HEIGHT = 280;
 const M = { top: 22, right: 16, bottom: 30, left: 46 };
 
