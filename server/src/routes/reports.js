@@ -10,7 +10,7 @@ import { renderPdf } from '../reports/pdfWriter.js';
 
 const router = Router();
 
-// Same access as the Analytics screen itself: super admins, admins and librarians.
+// Same access as the Analytics screen itself: super admins and admins.
 router.use(requireAuth, requireRole(...MANAGER_ROLES));
 
 // POST /api/reports/analytics

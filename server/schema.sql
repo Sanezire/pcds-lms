@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   email             VARCHAR(255)    NOT NULL,
   member_id         VARCHAR(32)     NOT NULL,
   password_hash     VARCHAR(255)    NOT NULL,
-  role              ENUM('admin', 'librarian', 'student', 'super_admin', 'student_assistant') NOT NULL DEFAULT 'student',
+  role              ENUM('admin', 'student', 'super_admin', 'student_assistant') NOT NULL DEFAULT 'student',
   status            ENUM('active', 'suspended', 'pending') NOT NULL DEFAULT 'active',
   last_login_at     DATETIME        NULL,
   created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -9,7 +9,7 @@ import { ensureStudentsTable } from './kiosk.js';
 
 const router = Router();
 
-// Same access as the kiosk screen: signed-in admins and librarians only.
+// Same access as the kiosk screen: signed-in admins only.
 router.use(requireAuth, requireRole(...ATTENDANCE_ROLES));
 
 const COLUMNS = `id, student_id, student_name, course, year_level, gender, time_in, time_out`;

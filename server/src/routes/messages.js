@@ -8,7 +8,7 @@ import { validateMessageText, validateOptionalMessage, validateRuleId } from '..
 
 const router = Router();
 
-// Same access as the rest of the staff tools: signed-in admins and librarians.
+// Same access as the rest of the staff tools: signed-in admins.
 router.use(requireAuth, requireRole(...MANAGER_ROLES));
 
 const toRule = (r) => ({

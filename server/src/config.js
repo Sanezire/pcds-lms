@@ -77,14 +77,13 @@ export const config = {
 export const ROLES = Object.freeze({
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
-  LIBRARIAN: 'librarian',
   STUDENT_ASSISTANT: 'student_assistant',
   STUDENT: 'student',
 });
 
 // Who may do what. Super admins can do everything admins can, plus read the audit log.
 // A student assistant (SA) can only use Manual Attendance.
-export const MANAGER_ROLES = Object.freeze([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LIBRARIAN]);
+export const MANAGER_ROLES = Object.freeze([ROLES.SUPER_ADMIN, ROLES.ADMIN]);
 export const ATTENDANCE_ROLES = Object.freeze([...MANAGER_ROLES, ROLES.STUDENT_ASSISTANT]);
 // Roles whose actions are written to the audit log.
 export const AUDITED_ROLES = ATTENDANCE_ROLES;

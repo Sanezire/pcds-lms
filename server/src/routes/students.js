@@ -9,7 +9,7 @@ import { ensureStudentsTable } from './kiosk.js';
 
 const router = Router();
 
-// Student records are managed by signed-in admins and librarians only.
+// Student records are managed by signed-in admins only.
 router.use(requireAuth, requireRole(...MANAGER_ROLES));
 
 const MAX_IMPORT_ROWS = 2000;

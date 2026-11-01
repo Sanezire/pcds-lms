@@ -7,7 +7,7 @@ import { VISITS_SQL } from '../visits.js';
 
 const router = Router();
 
-// Same access as the kiosk screen: signed-in admins and librarians only.
+// Same access as the kiosk screen: signed-in admins only.
 router.use(requireAuth, requireRole(...MANAGER_ROLES));
 
 const PAGE_SIZES = [10, 25, 50, 100];
