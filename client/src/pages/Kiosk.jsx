@@ -371,7 +371,7 @@ export default function Kiosk() {
         </ul>
       </div>
 
-      <main className="kiosk-main">
+      <main className={`kiosk-main${phase === 'success' && result ? ' has-card' : ''}`}>
         <img className="kiosk-logo" src={LOGO_SRC} alt="Polytechnic College of Davao del Sur seal" />
         {/* A message takes the place of the title while it is showing, then the title returns. */}
         {currentMessage ? (
@@ -402,25 +402,43 @@ export default function Kiosk() {
           )}
 
           {phase === 'success' && result && (
-            <div className="kiosk-result">
-              <div className="kiosk-result-head">
-                <span className="kiosk-badge is-success">
-                  <Icon name="check" />
-                </span>
-                <p className="kiosk-result-title">Attendance Recorded</p>
-              </div>
-              <div className="kiosk-result-id">
-                <span className="kiosk-label">Student ID</span>
-                <span className="kiosk-id">{result.studentId}</span>
-              </div>
-              <div className="kiosk-result-meta">
-                <div>
-                  <span className="kiosk-label">Status</span>
-                  <span className="kiosk-value">{ACTION_LABEL[result.action] || ''}</span>
-                </div>
-                <div>
-                  <span className="kiosk-label">Time</span>
-                  <span className="kiosk-value">{timeFmt.format(new Date(result.recordedAt))}</span>
+            <div className="kiosk-idstage">
+              <div className="kiosk-holder">
+                <span className="kiosk-holder-slot" aria-hidden="true" />
+                <div className="kiosk-idcard">
+                  <div className="kiosk-idcard-head">
+                    <p className="kiosk-idcard-school">
+                      Polytechnic College
+                      <br />
+                      of Davao del Sur, Inc.
+                    </p>
+                    <span className="kiosk-idcard-seal">
+                      <img src={LOGO_SRC} alt="" />
+                    </span>
+                  </div>
+                  <div className="kiosk-idcard-body">
+                    <p className="kiosk-idcard-action">{ACTION_LABEL[result.action] || ''}</p>
+                    <img className="kiosk-idcard-photo" src={LOGO_SRC} alt="" />
+                    <p className="kiosk-idcard-ok">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M5 12.5l4.5 4.5L19 7.5" />
+                      </svg>
+                      Attendance recorded
+                    </p>
+                    <p className="kiosk-idcard-time">{timeFmt.format(new Date(result.recordedAt))}</p>
+                    <div className="kiosk-idcard-id">
+                      <span className="kiosk-idcard-label">ID No.</span>
+                      <span className="kiosk-idcard-num">{result.studentId}</span>
+                    </div>
+                  </div>
+                  <div className="kiosk-idcard-foot">
+                    <span>PCDS LRC</span>
+                    <svg className="kiosk-idcard-nfc" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                      <path className="arc-1" d="M8 8.5c2 2.2 2 4.8 0 7" />
+                      <path className="arc-2" d="M12 6c3.4 3.4 3.4 8.6 0 12" />
+                      <path className="arc-3" d="M16 3.5c4.8 4.6 4.8 12.4 0 17" />
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>
