@@ -435,9 +435,9 @@
   text-align: center;
 }
 .kiosk-idcard-tap {
-  width: 4.2em;
-  height: 4.2em;
-  color: var(--blue-500);
+  width: 6em;
+  height: 6em;
+  object-fit: contain;
 }
 .kiosk-idcard-prompt {
   margin: 0;

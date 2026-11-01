@@ -389,11 +389,7 @@ export default function Kiosk() {
               <div className="kiosk-holder">
                 <span className="kiosk-holder-slot" aria-hidden="true" />
                 <div className="kiosk-idcard is-wait">
-                  <svg className="kiosk-idcard-tap" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                    <path d="M8 8.5c2 2.2 2 4.8 0 7" />
-                    <path d="M12 6c3.4 3.4 3.4 8.6 0 12" />
-                    <path d="M16 3.5c4.8 4.6 4.8 12.4 0 17" />
-                  </svg>
+                  <img className="kiosk-idcard-tap" src="/images/contactless_icon.gif" alt="" />
                   <p className="kiosk-idcard-prompt">Please tap your RFID card on the reader.</p>
                 </div>
               </div>
