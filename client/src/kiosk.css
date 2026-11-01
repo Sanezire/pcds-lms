@@ -116,6 +116,7 @@
   transition: border-color 0.2s ease;
 }
 .kiosk-card.is-success,
+.kiosk-card.is-busy,
 .kiosk-card.is-idle {
   min-height: 0;
   padding: 0;
@@ -425,6 +426,19 @@
   background: #f1f2ea;
   color: #1b2430;
   text-align: left;
+}
+.kiosk-idcard.is-wait {
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  padding: 1em;
+  text-align: center;
+}
+.kiosk-idcard-wait {
+  margin: 0;
+  font-size: 1.15em;
+  font-weight: 700;
+  color: var(--blue-700);
 }
 .kiosk-idcard-head {
   position: relative;

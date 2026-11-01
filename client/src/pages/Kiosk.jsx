@@ -394,9 +394,14 @@ export default function Kiosk() {
           )}
 
           {phase === 'busy' && (
-            <div className="kiosk-state">
-              <span className="kiosk-spinner" aria-hidden="true" />
-              <p className="kiosk-state-title">Checking your card…</p>
+            <div className="kiosk-idstage is-empty">
+              <div className="kiosk-holder">
+                <span className="kiosk-holder-slot" aria-hidden="true" />
+                <div className="kiosk-idcard is-wait">
+                  <span className="kiosk-spinner" aria-hidden="true" />
+                  <p className="kiosk-idcard-wait">Checking your card…</p>
+                </div>
+              </div>
             </div>
           )}
 
