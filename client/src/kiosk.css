@@ -481,19 +481,19 @@
   flex-direction: column;
   align-items: center;
   gap: 0.35em;
-  padding: 1.7em 0.9em 0.7em;
+  padding: 2.7em 0.9em 0.7em;
   background: linear-gradient(168deg, #a9dcef 43%, #e0b53a 43%, #e0b53a calc(43% + 2px), #f1f2ea calc(43% + 2px));
 }
 .kiosk-idcard-action {
   margin: 0;
-  font-size: 1.05em;
+  font-size: 1.4em;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 .kiosk-idcard-photo {
-  width: 36%;
-  margin-top: 0.6em;
+  width: 38%;
+  margin-top: 1.1em;
   aspect-ratio: 1;
   object-fit: contain;
   background: none;
@@ -527,13 +527,13 @@
   margin-top: auto;
 }
 .kiosk-idcard-label {
-  font-size: 0.7em;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 0.85em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .kiosk-idcard-num {
-  font-size: 1.15em;
+  font-size: 1.6em;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
