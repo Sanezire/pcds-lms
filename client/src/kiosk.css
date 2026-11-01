@@ -115,7 +115,8 @@
   box-shadow: 0 10px 30px rgba(31, 106, 171, 0.1);
   transition: border-color 0.2s ease;
 }
-.kiosk-card.is-success {
+.kiosk-card.is-success,
+.kiosk-card.is-idle {
   min-height: 0;
   padding: 0;
   background: none;
@@ -430,7 +431,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5em;
-  padding: 0.6em 0.8em;
+  padding: 1.1em 0.8em 1em;
   background: var(--white);
 }
 .kiosk-idcard-school {
@@ -464,7 +465,7 @@
   flex-direction: column;
   align-items: center;
   gap: 0.35em;
-  padding: 1em 0.9em 0.7em;
+  padding: 1.7em 0.9em 0.7em;
   background: linear-gradient(168deg, #a9dcef 43%, #e0b53a 43%, #e0b53a calc(43% + 2px), #f1f2ea calc(43% + 2px));
 }
 .kiosk-idcard-action {
@@ -560,6 +561,15 @@
 @keyframes kiosk-arc {
   0% { opacity: 0.2; }
   100% { opacity: 1; }
+}
+
+.kiosk-idstage.is-empty::before,
+.kiosk-idstage.is-empty::after {
+  display: none;
+}
+.kiosk-idstage.is-empty .kiosk-holder,
+.kiosk-idstage.is-empty .kiosk-holder::after {
+  animation: none;
 }
 
 @media (max-height: 900px) {

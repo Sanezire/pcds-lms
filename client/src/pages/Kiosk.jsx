@@ -385,12 +385,11 @@ export default function Kiosk() {
 
         <section className={`kiosk-card is-${phase}`} aria-live="polite" aria-atomic="true">
           {phase === 'idle' && (
-            <div className="kiosk-state">
-              <span className="kiosk-badge is-neutral">
-                <Icon name="card" />
-              </span>
-              <p className="kiosk-state-title">Ready to scan</p>
-              <p className="kiosk-state-note">Your Student ID will appear here after you tap.</p>
+            <div className="kiosk-idstage is-empty" role="img" aria-label="Ready to scan. Your ID will appear here after you tap.">
+              <div className="kiosk-holder">
+                <span className="kiosk-holder-slot" aria-hidden="true" />
+                <div className="kiosk-idcard" />
+              </div>
             </div>
           )}
 
