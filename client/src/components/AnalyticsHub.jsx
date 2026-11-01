@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
+import { downloadReport } from '../reportDownload.js';
+import { DownloadIcon } from './Icons.jsx';
 import Analytics from './Analytics.jsx';
 import LibraryVisitTrends from './LibraryVisitTrends.jsx';
 import PeakUsage, { hourRange } from './PeakUsage.jsx';
@@ -139,6 +141,23 @@ const CHARTS = [
   { id: 'programs', title: 'Visits by Program & Year Level', blurb: 'Programs and year levels compared', Preview: ProgramPreview, Detail: ProgramYearVisits },
 ];
 
+// One PDF with every chart and its table, each chart on its own page, using the
+// period and filters each chart opens with.
+function ExportAllButton() {
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    setBusy(true);
+    await downloadReport({ chart: 'all', format: 'pdf' });
+    setBusy(false);
+  }
+  return (
+    <button type="button" className="btn btn-primary" onClick={run} disabled={busy}>
+      <DownloadIcon width={18} height={18} />
+      {busy ? 'Preparing…' : 'Export all analytics'}
+    </button>
+  );
+}
+
 export default function AnalyticsHub() {
   const [params, setParams] = useSearchParams();
   const chart = CHARTS.find((c) => c.id === params.get('chart')) || null;
@@ -180,6 +199,11 @@ export default function AnalyticsHub() {
   }
 
   return (
+    <>
+    <div className="analytics-toolbar">
+      <p className="muted">Open a chart to see it in detail and export it, or print every chart at once.</p>
+      <ExportAllButton />
+    </div>
     <ul className="chart-cards" aria-label="Analytics charts">
       {CHARTS.map((c) => (
         <li key={c.id}>
@@ -197,5 +221,6 @@ export default function AnalyticsHub() {
         </li>
       ))}
     </ul>
+    </>
   );
 }

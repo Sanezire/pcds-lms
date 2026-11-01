@@ -1935,3 +1935,139 @@ select.field-select[name="role"] { width: 100%; }
   .hbar-track { grid-column: 1 / -1; order: 3; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* ---------- Analytics export: menu, dialog and the "export all" bar ---------- */
+.analytics-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+.analytics-toolbar p {
+  margin: 0;
+}
+.analytics-toolbar .btn,
+.export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.export-menu {
+  position: relative;
+  flex: none;
+  align-self: center;
+}
+.export-caret {
+  font-size: 0.75rem;
+}
+.export-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 270px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--white);
+  border: 1px solid var(--blue-200);
+  border-radius: var(--radius);
+  box-shadow: 0 14px 30px -12px rgba(24, 86, 136, 0.4);
+}
+.export-item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.export-item:hover,
+.export-item:focus-visible {
+  background: var(--blue-100);
+  outline: none;
+}
+.export-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--blue-600);
+}
+.export-item .muted {
+  font-size: 0.8125rem;
+}
+.choice-columns {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+}
+.choice-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.choice-group legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.choice-all,
+.choice-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+.choice-all {
+  border-bottom: 1px solid var(--blue-200);
+  font-weight: 600;
+}
+.choice-all input,
+.choice-item input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--blue-600);
+}
+.choice-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 4px 0 0;
+  max-height: min(300px, 38vh);
+  overflow-y: auto;
+}
+.choice-item span {
+  overflow-wrap: anywhere;
+}
+.choice-hint {
+  min-height: 1.25rem;
+  margin: 12px 0 0;
+  color: var(--danger, #a12b24);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+@media (max-width: 700px) {
+  .choice-columns {
+    grid-template-columns: 1fr;
+  }
+  .export-list {
+    min-width: 0;
+    width: min(270px, calc(100vw - 48px));
+  }
+}
+
+/* Keep the Export button on the title row, at the right edge of the card. */
+.table-head:has(.export-menu) > div:first-child {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.table-head .export-menu {
+  margin-left: auto;
+}

@@ -28,3 +28,7 @@ export const GOODBYE_TEXT = 'Goodbye, see you again';
 export function showSuccessToast(title, text) {
   return toast.fire({ icon: 'success', title, text });
 }
+
+export function showErrorToast(title, text) {
+  return toast.fire({ icon: 'error', title, text, iconColor: '#a12b24', timer: 5000 });
+}

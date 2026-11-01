@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { TrendChart } from './LibraryVisitTrends.jsx';
+import ExportMenu from './ExportMenu.jsx';
 
 const PERIODS = [
   { value: 'last7', label: 'Last 7 days' },
@@ -130,6 +131,7 @@ export default function PeakUsage() {
   const hours = data?.hours;
   const closedNames = hours ? hours.closedWeekdays.map((d) => weekdayLong(dayDate(d))) : [];
   const hasVisits = data && data.counted > 0;
+  const exportFilters = data && customReady && !customError ? { range: period, group, ...(period === 'custom' ? { from, to } : {}) } : null;
   const periodLabel = data ? `${dayMedium(new Date(`${data.from}T00:00:00Z`))} to ${dayMedium(new Date(`${data.to}T00:00:00Z`))}` : '';
 
   return (
@@ -141,6 +143,7 @@ export default function PeakUsage() {
             When the library is busiest. Each student counts once per day, at the time they first arrived.
           </p>
         </div>
+        <ExportMenu chart="peak" filters={exportFilters} />
       </div>
 
       <div className="analytics-controls">

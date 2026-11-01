@@ -43,6 +43,14 @@ export const registerLimiter = rateLimit({
   handler: tooMany('Too many registration attempts. Try again later.'),
 });
 
+// Building a report reads a lot of attendance data, so exports are limited per client IP.
+export const reportLimiter = rateLimit({
+  ...base,
+  windowMs: 60 * 1000,
+  limit: 20,
+  handler: tooMany('Too many exports. Wait a moment and try again.'),
+});
+
 // The kiosk scan has no sign-in, so it is limited per client IP to slow down
 // anyone trying IDs one after another. A busy desk reader stays well under this.
 export const kioskScanLimiter = rateLimit({

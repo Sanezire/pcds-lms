@@ -210,145 +210,155 @@ function resolveRange(q, today) {
 // school's local time. Only visits on open days and inside operating hours are
 // counted in the charts; the rest are reported separately so nothing disappears.
 
+export async function peakData(q) {
+  const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
+  const { from, to } = resolveRange(q, today);
+  const { openHour, closeHour, closedWeekdays } = config.library;
+
+  const rows = await query(
+    `SELECT HOUR(arrived) AS h, WEEKDAY(arrived) AS wd, DATE_FORMAT(arrived, '%Y-%m') AS m, COUNT(*) AS c
+       FROM (
+         SELECT student_id, d, MIN(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS arrived
+           FROM (SELECT student_id, time_in, DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d
+                   FROM (${VISITS_SQL}) v) x
+          WHERE d BETWEEN ? AND ?
+          GROUP BY student_id, d
+       ) y
+      GROUP BY h, wd, m`,
+    [from, to]
+  );
+
+  const hours = Array.from({ length: closeHour - openHour }, (_, i) => ({ hour: openHour + i, visits: 0 }));
+  const weekdays = Array.from({ length: 7 }, (_, i) => ({ day: i, visits: 0, closed: closedWeekdays.includes(i) }));
+  const months = new Map();
+  let total = 0;
+  let offHours = 0;
+  for (const r of rows) {
+    const c = Number(r.c);
+    total += c;
+    if (closedWeekdays.includes(r.wd) || r.h < openHour || r.h >= closeHour) {
+      offHours += c;
+      continue;
+    }
+    hours[r.h - openHour].visits += c;
+    weekdays[r.wd].visits += c;
+    months.set(r.m, (months.get(r.m) || 0) + c);
+  }
+
+  // Every month in the range, so quiet months show as zero rather than vanishing.
+  const monthList = [];
+  for (let k = from.slice(0, 7); k <= to.slice(0, 7); ) {
+    monthList.push({ month: k, visits: months.get(k) || 0 });
+    const [y, mo] = k.split('-').map(Number);
+    k = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`;
+  }
+
+  // Highest / lowest; the earliest one wins a tie. Nothing is "busiest" with no visits.
+  const top = (list) => list.reduce((a, b) => (b.visits > a.visits ? b : a));
+  const best = (list, pick) => (list.some((x) => x.visits > 0) ? pick(top(list)) : null);
+  const least = (list, pick) =>
+    list.some((x) => x.visits > 0) ? pick(list.reduce((a, b) => (b.visits < a.visits ? b : a))) : null;
+  const openDays = weekdays.filter((d) => !d.closed);
+
+  return {
+    today,
+    from,
+    to,
+    total,
+    counted: total - offHours,
+    offHours,
+    hours: { open: openHour, close: closeHour, closedWeekdays },
+    byHour: hours,
+    byWeekday: weekdays,
+    byMonth: monthList,
+    insights: {
+      busiestDay: best(openDays, (d) => ({ day: d.day, visits: d.visits })),
+      leastBusyDay: least(openDays, (d) => ({ day: d.day, visits: d.visits })),
+      busiestMonth: best(monthList, (m) => ({ month: m.month, visits: m.visits })),
+      busiestHour: best(hours, (h) => ({ hour: h.hour, visits: h.visits })),
+      leastBusyHour: least(hours, (h) => ({ hour: h.hour, visits: h.visits })),
+    },
+  };
+}
+
 router.get('/peak', async (req, res, next) => {
   try {
-    const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
-    const { from, to } = resolveRange(req.query, today);
-    const { openHour, closeHour, closedWeekdays } = config.library;
-
-    const rows = await query(
-      `SELECT HOUR(arrived) AS h, WEEKDAY(arrived) AS wd, DATE_FORMAT(arrived, '%Y-%m') AS m, COUNT(*) AS c
-         FROM (
-           SELECT student_id, d, MIN(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS arrived
-             FROM (SELECT student_id, time_in, DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d
-                     FROM (${VISITS_SQL}) v) x
-            WHERE d BETWEEN ? AND ?
-            GROUP BY student_id, d
-         ) y
-        GROUP BY h, wd, m`,
-      [from, to]
-    );
-
-    const hours = Array.from({ length: closeHour - openHour }, (_, i) => ({ hour: openHour + i, visits: 0 }));
-    const weekdays = Array.from({ length: 7 }, (_, i) => ({ day: i, visits: 0, closed: closedWeekdays.includes(i) }));
-    const months = new Map();
-    let total = 0;
-    let offHours = 0;
-    for (const r of rows) {
-      const c = Number(r.c);
-      total += c;
-      if (closedWeekdays.includes(r.wd) || r.h < openHour || r.h >= closeHour) {
-        offHours += c;
-        continue;
-      }
-      hours[r.h - openHour].visits += c;
-      weekdays[r.wd].visits += c;
-      months.set(r.m, (months.get(r.m) || 0) + c);
-    }
-
-    // Every month in the range, so quiet months show as zero rather than vanishing.
-    const monthList = [];
-    for (let k = from.slice(0, 7); k <= to.slice(0, 7); ) {
-      monthList.push({ month: k, visits: months.get(k) || 0 });
-      const [y, mo] = k.split('-').map(Number);
-      k = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`;
-    }
-
-    // Highest / lowest; the earliest one wins a tie. Nothing is "busiest" with no visits.
-    const top = (list) => list.reduce((a, b) => (b.visits > a.visits ? b : a));
-    const best = (list, pick) => (list.some((x) => x.visits > 0) ? pick(top(list)) : null);
-    const least = (list, pick) =>
-      list.some((x) => x.visits > 0) ? pick(list.reduce((a, b) => (b.visits < a.visits ? b : a))) : null;
-    const openDays = weekdays.filter((d) => !d.closed);
-
+    const data = await peakData(req.query);
     res.set('Cache-Control', 'no-store');
-    res.json({
-      today,
-      from,
-      to,
-      total,
-      counted: total - offHours,
-      offHours,
-      hours: { open: openHour, close: closeHour, closedWeekdays },
-      byHour: hours,
-      byWeekday: weekdays,
-      byMonth: monthList,
-      insights: {
-        busiestDay: best(openDays, (d) => ({ day: d.day, visits: d.visits })),
-        leastBusyDay: least(openDays, (d) => ({ day: d.day, visits: d.visits })),
-        busiestMonth: best(monthList, (m) => ({ month: m.month, visits: m.visits })),
-        busiestHour: best(hours, (h) => ({ hour: h.hour, visits: h.visits })),
-        leastBusyHour: least(hours, (h) => ({ hour: h.hour, visits: h.visits })),
-      },
-    });
+    res.json(data);
   } catch (err) {
     next(err);
   }
 });
 
+export async function visitsData(q) {
+  const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
+  const { from, to } = resolveRange(q, today);
+
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const weekStart = addDays(today, -((toDate(today).getUTCDay() + 6) % 7)); // Monday
+
+  const [rows, sums] = await Promise.all([
+    query(
+      `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
+         FROM (${VISIT_DAYS_SQL}) x
+        WHERE d BETWEEN ? AND ?
+        GROUP BY d
+        ORDER BY d`,
+      [from, to]
+    ),
+    query(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(d >= ?), 0) AS this_month,
+              COALESCE(SUM(d >= ?), 0) AS this_week,
+              COALESCE(SUM(d = ?), 0) AS today
+         FROM (${VISIT_DAYS_SQL}) x`,
+      [monthStart, weekStart, today]
+    ),
+  ]);
+
+  const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
+  const span = daysBetween(from, to) + 1;
+  const granularity = span <= DAILY_BARS_UP_TO_DAYS ? 'day' : 'month';
+
+  const bars = [];
+  if (granularity === 'day') {
+    for (let i = 0; i < span; i += 1) {
+      const day = addDays(from, i);
+      bars.push({ key: day, visits: perDay.get(day) || 0 });
+    }
+  } else {
+    const byMonth = new Map();
+    for (let i = 0; i < span; i += 1) {
+      const day = addDays(from, i);
+      const key = day.slice(0, 7);
+      byMonth.set(key, (byMonth.get(key) || 0) + (perDay.get(day) || 0));
+    }
+    for (const [key, visits] of byMonth) bars.push({ key, visits });
+  }
+
+  const sum = sums[0];
+  return {
+    today,
+    from,
+    to,
+    granularity,
+    bars,
+    periodTotal: bars.reduce((n, b) => n + b.visits, 0),
+    summary: {
+      total: Number(sum.total),
+      thisMonth: Number(sum.this_month),
+      thisWeek: Number(sum.this_week),
+      today: Number(sum.today),
+    },
+  };
+}
+
 router.get('/visits', async (req, res, next) => {
   try {
-    const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
-    const { from, to } = resolveRange(req.query, today);
-
-    const monthStart = `${today.slice(0, 7)}-01`;
-    const weekStart = addDays(today, -((toDate(today).getUTCDay() + 6) % 7)); // Monday
-
-    const [rows, sums] = await Promise.all([
-      query(
-        `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
-           FROM (${VISIT_DAYS_SQL}) x
-          WHERE d BETWEEN ? AND ?
-          GROUP BY d
-          ORDER BY d`,
-        [from, to]
-      ),
-      query(
-        `SELECT COUNT(*) AS total,
-                COALESCE(SUM(d >= ?), 0) AS this_month,
-                COALESCE(SUM(d >= ?), 0) AS this_week,
-                COALESCE(SUM(d = ?), 0) AS today
-           FROM (${VISIT_DAYS_SQL}) x`,
-        [monthStart, weekStart, today]
-      ),
-    ]);
-
-    const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
-    const span = daysBetween(from, to) + 1;
-    const granularity = span <= DAILY_BARS_UP_TO_DAYS ? 'day' : 'month';
-
-    const bars = [];
-    if (granularity === 'day') {
-      for (let i = 0; i < span; i += 1) {
-        const day = addDays(from, i);
-        bars.push({ key: day, visits: perDay.get(day) || 0 });
-      }
-    } else {
-      const byMonth = new Map();
-      for (let i = 0; i < span; i += 1) {
-        const day = addDays(from, i);
-        const key = day.slice(0, 7);
-        byMonth.set(key, (byMonth.get(key) || 0) + (perDay.get(day) || 0));
-      }
-      for (const [key, visits] of byMonth) bars.push({ key, visits });
-    }
-
-    const sum = sums[0];
+    const data = await visitsData(req.query);
     res.set('Cache-Control', 'no-store');
-    res.json({
-      today,
-      from,
-      to,
-      granularity,
-      bars,
-      periodTotal: bars.reduce((n, b) => n + b.visits, 0),
-      summary: {
-        total: Number(sum.total),
-        thisMonth: Number(sum.this_month),
-        thisWeek: Number(sum.this_week),
-        today: Number(sum.today),
-      },
-    });
+    res.json(data);
   } catch (err) {
     next(err);
   }
@@ -380,102 +390,106 @@ async function countByMonth(fromDay, toDay) {
   return new Map(rows.map((r) => [r.k, Number(r.visits)]));
 }
 
-router.get('/trends', async (req, res, next) => {
-  try {
-    const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
-    const thisYear = Number(today.slice(0, 4));
-    const thisMonth = today.slice(0, 7);
-    const q = req.query;
-    const report = ['daily', 'monthly', 'annual', 'compare', 'custom'].includes(q.report) ? q.report : null;
-    if (!report) throw httpError(400, 'Invalid report.');
+export async function trendsData(q) {
+  const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
+  const thisYear = Number(today.slice(0, 4));
+  const thisMonth = today.slice(0, 7);
+  const report = ['daily', 'monthly', 'annual', 'compare', 'custom'].includes(q.report) ? q.report : null;
+  if (!report) throw httpError(400, 'Invalid report.');
 
-    // Years that have visits, so the pickers only offer years worth choosing.
-    const yearRows = await query(`SELECT DISTINCT YEAR(d) AS y FROM (${VISIT_DAYS_SQL}) x ORDER BY y`);
-    const years = [...new Set([...yearRows.map((r) => Number(r.y)), thisYear])].sort((a, b) => a - b);
+  // Years that have visits, so the pickers only offer years worth choosing.
+  const yearRows = await query(`SELECT DISTINCT YEAR(d) AS y FROM (${VISIT_DAYS_SQL}) x ORDER BY y`);
+  const years = [...new Set([...yearRows.map((r) => Number(r.y)), thisYear])].sort((a, b) => a - b);
 
-    const out = { report, today, years };
+  const out = { report, today, years };
 
-    if (report === 'daily') {
-      const month = typeof q.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(q.month) ? q.month : thisMonth;
-      const first = `${month}-01`;
-      const last = fmt(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)));
+  if (report === 'daily') {
+    const month = typeof q.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(q.month) ? q.month : thisMonth;
+    const first = `${month}-01`;
+    const last = fmt(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)));
+    const rows = await query(
+      `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
+         FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
+      [first, last]
+    );
+    const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
+    out.granularity = 'day';
+    out.label = month;
+    out.buckets = Array.from({ length: daysBetween(first, last) + 1 }, (_, i) => {
+      const key = addDays(first, i);
+      return { key, visits: perDay.get(key) || 0, future: key > today };
+    });
+  } else if (report === 'monthly') {
+    const year = q.year ? parseYear(q.year) : thisYear;
+    const counts = await countByMonth(`${year}-01-01`, `${year}-12-31`);
+    out.granularity = 'month';
+    out.label = String(year);
+    out.buckets = monthKeys(year).map((key) => ({ key, visits: counts.get(key) || 0, future: key > thisMonth }));
+  } else if (report === 'annual') {
+    const rows = await query(
+      `SELECT YEAR(d) AS y, COUNT(*) AS visits FROM (${VISIT_DAYS_SQL}) x GROUP BY y`
+    );
+    const perYear = new Map(rows.map((r) => [Number(r.y), Number(r.visits)]));
+    const firstYear = Math.min(years[0], thisYear);
+    out.granularity = 'year';
+    out.label = 'All years';
+    out.buckets = Array.from({ length: thisYear - firstYear + 1 }, (_, i) => {
+      const y = firstYear + i;
+      return { key: String(y), visits: perYear.get(y) || 0, future: false };
+    });
+  } else if (report === 'compare') {
+    const picked = [...new Set(String(q.years || '').split(',').filter(Boolean).map((y) => parseYear(y)))]
+      .sort((a, b) => a - b);
+    if (picked.length < 2) throw httpError(400, 'Choose at least two years to compare.');
+    if (picked.length > MAX_COMPARE_YEARS) throw httpError(400, `Compare up to ${MAX_COMPARE_YEARS} years at a time.`);
+    const counts = await countByMonth(`${picked[0]}-01-01`, `${picked[picked.length - 1]}-12-31`);
+    out.granularity = 'month';
+    out.label = picked.join(' vs ');
+    out.series = picked.map((year) => ({
+      year,
+      buckets: monthKeys(year).map((key) => ({ key, visits: counts.get(key) || 0, future: key > thisMonth })),
+    }));
+  } else {
+    const { from, to } = resolveRange({ ...q, range: 'custom' }, today);
+    const span = daysBetween(from, to) + 1;
+    out.from = from;
+    out.to = to;
+    if (span <= DAILY_BARS_UP_TO_DAYS) {
       const rows = await query(
         `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
            FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
-        [first, last]
+        [from, to]
       );
       const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
       out.granularity = 'day';
-      out.label = month;
-      out.buckets = Array.from({ length: daysBetween(first, last) + 1 }, (_, i) => {
-        const key = addDays(first, i);
-        return { key, visits: perDay.get(key) || 0, future: key > today };
+      out.buckets = Array.from({ length: span }, (_, i) => {
+        const key = addDays(from, i);
+        return { key, visits: perDay.get(key) || 0, future: false };
       });
-    } else if (report === 'monthly') {
-      const year = q.year ? parseYear(q.year) : thisYear;
-      const counts = await countByMonth(`${year}-01-01`, `${year}-12-31`);
-      out.granularity = 'month';
-      out.label = String(year);
-      out.buckets = monthKeys(year).map((key) => ({ key, visits: counts.get(key) || 0, future: key > thisMonth }));
-    } else if (report === 'annual') {
-      const rows = await query(
-        `SELECT YEAR(d) AS y, COUNT(*) AS visits FROM (${VISIT_DAYS_SQL}) x GROUP BY y`
-      );
-      const perYear = new Map(rows.map((r) => [Number(r.y), Number(r.visits)]));
-      const firstYear = Math.min(years[0], thisYear);
-      out.granularity = 'year';
-      out.label = 'All years';
-      out.buckets = Array.from({ length: thisYear - firstYear + 1 }, (_, i) => {
-        const y = firstYear + i;
-        return { key: String(y), visits: perYear.get(y) || 0, future: false };
-      });
-    } else if (report === 'compare') {
-      const picked = [...new Set(String(q.years || '').split(',').filter(Boolean).map((y) => parseYear(y)))]
-        .sort((a, b) => a - b);
-      if (picked.length < 2) throw httpError(400, 'Choose at least two years to compare.');
-      if (picked.length > MAX_COMPARE_YEARS) throw httpError(400, `Compare up to ${MAX_COMPARE_YEARS} years at a time.`);
-      const counts = await countByMonth(`${picked[0]}-01-01`, `${picked[picked.length - 1]}-12-31`);
-      out.granularity = 'month';
-      out.label = picked.join(' vs ');
-      out.series = picked.map((year) => ({
-        year,
-        buckets: monthKeys(year).map((key) => ({ key, visits: counts.get(key) || 0, future: key > thisMonth })),
-      }));
     } else {
-      const { from, to } = resolveRange({ ...q, range: 'custom' }, today);
-      const span = daysBetween(from, to) + 1;
-      out.from = from;
-      out.to = to;
-      if (span <= DAILY_BARS_UP_TO_DAYS) {
-        const rows = await query(
-          `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
-             FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
-          [from, to]
-        );
-        const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
-        out.granularity = 'day';
-        out.buckets = Array.from({ length: span }, (_, i) => {
-          const key = addDays(from, i);
-          return { key, visits: perDay.get(key) || 0, future: false };
-        });
-      } else {
-        const counts = await countByMonth(from, to);
-        out.granularity = 'month';
-        const keys = [];
-        for (let k = from.slice(0, 7); k <= to.slice(0, 7); ) {
-          keys.push(k);
-          const [y, m] = k.split('-').map(Number);
-          k = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
-        }
-        // Months at the edge of the range only count the days inside it.
-        out.buckets = keys.map((key) => ({ key, visits: counts.get(key) || 0, future: false }));
+      const counts = await countByMonth(from, to);
+      out.granularity = 'month';
+      const keys = [];
+      for (let k = from.slice(0, 7); k <= to.slice(0, 7); ) {
+        keys.push(k);
+        const [y, m] = k.split('-').map(Number);
+        k = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
       }
+      // Months at the edge of the range only count the days inside it.
+      out.buckets = keys.map((key) => ({ key, visits: counts.get(key) || 0, future: false }));
     }
+  }
 
-    const all = out.series ? out.series.flatMap((s) => s.buckets) : out.buckets;
-    out.total = all.reduce((n, b) => n + b.visits, 0);
+  const all = out.series ? out.series.flatMap((s) => s.buckets) : out.buckets;
+  out.total = all.reduce((n, b) => n + b.visits, 0);
+  return out;
+}
+
+router.get('/trends', async (req, res, next) => {
+  try {
+    const data = await trendsData(req.query);
     res.set('Cache-Control', 'no-store');
-    res.json(out);
+    res.json(data);
   } catch (err) {
     next(err);
   }
@@ -528,49 +542,54 @@ const PROGRAM_VISITS_SQL = `
    WHERE x.d BETWEEN ? AND ?
 `;
 
+export async function programYearData(q) {
+  const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
+  const { from, to } = await resolveProgramRange(q, today);
+
+  let yearLevel = null;
+  if (q.year !== undefined && q.year !== '') {
+    if (typeof q.year !== 'string' || !/^[1-6]$/.test(q.year)) throw httpError(400, 'Invalid year level.');
+    yearLevel = Number(q.year);
+  }
+
+  const [rows, levels, left] = await Promise.all([
+    query(
+      `SELECT program, year_level, COUNT(*) AS visits
+         FROM (${PROGRAM_VISITS_SQL}) p
+        WHERE program IS NOT NULL ${yearLevel ? 'AND year_level = ?' : ''}
+        GROUP BY program, year_level
+        ORDER BY program, year_level`,
+      yearLevel ? [from, to, yearLevel] : [from, to]
+    ),
+    query(
+      'SELECT year_level FROM students_data UNION SELECT year_level FROM manual_attendance WHERE year_level IS NOT NULL ORDER BY year_level'
+    ),
+    query(`SELECT COUNT(*) AS n FROM (${PROGRAM_VISITS_SQL}) p WHERE program IS NULL`, [from, to]),
+  ]);
+
+  const cells = rows.map((r) => ({
+    program: r.program,
+    yearLevel: r.year_level === null ? null : Number(r.year_level),
+    visits: Number(r.visits),
+  }));
+
+  return {
+    today,
+    from,
+    to,
+    yearLevel,
+    yearLevels: levels.map((l) => Number(l.year_level)),
+    total: cells.reduce((n, c) => n + c.visits, 0),
+    leftOut: Number(left[0].n),
+    rows: cells,
+  };
+}
+
 router.get('/program-year', async (req, res, next) => {
   try {
-    const today = fmt(new Date(Date.now() + OFFSET_MIN * 60 * 1000));
-    const { from, to } = await resolveProgramRange(req.query, today);
-
-    let yearLevel = null;
-    if (req.query.year !== undefined && req.query.year !== '') {
-      if (typeof req.query.year !== 'string' || !/^[1-6]$/.test(req.query.year)) throw httpError(400, 'Invalid year level.');
-      yearLevel = Number(req.query.year);
-    }
-
-    const [rows, levels, left] = await Promise.all([
-      query(
-        `SELECT program, year_level, COUNT(*) AS visits
-           FROM (${PROGRAM_VISITS_SQL}) p
-          WHERE program IS NOT NULL ${yearLevel ? 'AND year_level = ?' : ''}
-          GROUP BY program, year_level
-          ORDER BY program, year_level`,
-        yearLevel ? [from, to, yearLevel] : [from, to]
-      ),
-      query(
-        'SELECT year_level FROM students_data UNION SELECT year_level FROM manual_attendance WHERE year_level IS NOT NULL ORDER BY year_level'
-      ),
-      query(`SELECT COUNT(*) AS n FROM (${PROGRAM_VISITS_SQL}) p WHERE program IS NULL`, [from, to]),
-    ]);
-
-    const cells = rows.map((r) => ({
-      program: r.program,
-      yearLevel: r.year_level === null ? null : Number(r.year_level),
-      visits: Number(r.visits),
-    }));
-
+    const data = await programYearData(req.query);
     res.set('Cache-Control', 'no-store');
-    res.json({
-      today,
-      from,
-      to,
-      yearLevel,
-      yearLevels: levels.map((l) => Number(l.year_level)),
-      total: cells.reduce((n, c) => n + c.visits, 0),
-      leftOut: Number(left[0].n),
-      rows: cells,
-    });
+    res.json(data);
   } catch (err) {
     next(err);
   }

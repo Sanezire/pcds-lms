@@ -11,7 +11,7 @@ const router = Router();
 router.use(requireAuth, requireRole(ROLES.SUPER_ADMIN));
 
 const PAGE_SIZES = [10, 25, 50, 100];
-const CATEGORIES = ['auth', 'account', 'attendance', 'student', 'message', 'audit'];
+const CATEGORIES = ['auth', 'account', 'attendance', 'student', 'message', 'report', 'audit'];
 const MAX_DELETE_IDS = 1000;
 
 // A school-local calendar day (YYYY-MM-DD) as a UTC instant.
