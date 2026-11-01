@@ -381,14 +381,16 @@ export default function Kiosk() {
         ) : (
           <h1 className="kiosk-title">Library Attendance</h1>
         )}
-        <p className="kiosk-instruction">Please tap your RFID card on the reader.</p>
+        {phase === 'error' && <p className="kiosk-instruction">Please tap your RFID card on the reader.</p>}
 
         <section className={`kiosk-card is-${phase}`} aria-live="polite" aria-atomic="true">
           {phase === 'idle' && (
             <div className="kiosk-idstage is-empty" role="img" aria-label="Ready to scan. Your ID will appear here after you tap.">
               <div className="kiosk-holder">
                 <span className="kiosk-holder-slot" aria-hidden="true" />
-                <div className="kiosk-idcard" />
+                <div className="kiosk-idcard is-wait">
+                  <p className="kiosk-idcard-prompt">Please tap your RFID card on the reader.</p>
+                </div>
               </div>
             </div>
           )}

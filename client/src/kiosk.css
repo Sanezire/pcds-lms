@@ -434,6 +434,13 @@
   padding: 1em;
   text-align: center;
 }
+.kiosk-idcard-prompt {
+  margin: 0;
+  font-size: 1.3em;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--muted);
+}
 .kiosk-idcard-wait {
   margin: 0;
   font-size: 1.15em;
