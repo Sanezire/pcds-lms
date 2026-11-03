@@ -53,7 +53,7 @@ function StudentFields({ values, errors, set, onFieldBlur, onSelectCommit, onRfi
   const listId = useId();
   return (
     <div className="student-form-grid">
-      <Field label="RFID number (optional)" name="rfidNumber" autoComplete="off" spellCheck="false" placeholder="e.g. 3E5CCBF0" value={values.rfidNumber} onChange={onRfidChange || set('rfidNumber')} onFocus={onRfidFocus} onKeyDown={onRfidKeyDown} onBlur={onFieldBlur} error={errors.rfidNumber} />
+      <Field label="RFID number" name="rfidNumber" autoComplete="off" spellCheck="false" placeholder="e.g. 3E5CCBF0" value={values.rfidNumber} onChange={onRfidChange || set('rfidNumber')} onFocus={onRfidFocus} onKeyDown={onRfidKeyDown} onBlur={onFieldBlur} error={errors.rfidNumber} />
       <Field label="Student ID" name="studentId" autoComplete="off" placeholder="2025-1042-3" value={values.studentId} onChange={set('studentId')} onBlur={onFieldBlur} error={errors.studentId} />
       <Field label="Full name" name="fullName" autoComplete="off" value={values.fullName} onChange={set('fullName')} onBlur={onFieldBlur} error={errors.fullName} />
       <Field label="Course" name="course" list={listId} autoComplete="off" placeholder="Choose from the list or type a course" value={values.course} onChange={set('course')} onBlur={onFieldBlur} error={errors.course} />
