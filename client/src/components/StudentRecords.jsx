@@ -393,6 +393,8 @@ function ImportCsv({ onImported }) {
 function StudentList({ refreshKey }) {
   const [term, setTerm] = useState('');
   const [q, setQ] = useState('');
+  const [course, setCourse] = useState('');
+  const [courses, setCourses] = useState([]);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -411,14 +413,16 @@ function StudentList({ refreshKey }) {
   const load = useCallback(async () => {
     const id = ++latest.current;
     try {
-      const r = await api(`/students?q=${encodeURIComponent(q)}&page=${page}&pageSize=${PAGE_SIZE}`);
+      const r = await api(`/students?q=${encodeURIComponent(q)}&course=${encodeURIComponent(course)}&page=${page}&pageSize=${PAGE_SIZE}`);
       if (id !== latest.current) return;
       setData(r);
+      setCourses(r.courses);
+      if (course && !r.courses.includes(course)) setCourse('');
       setError('');
     } catch (err) {
       if (id === latest.current) setError(err.message);
     }
-  }, [q, page]);
+  }, [q, course, page]);
 
   useEffect(() => {
     load();
@@ -461,13 +465,34 @@ function StudentList({ refreshKey }) {
           {data && (
             <p className="muted">
               {number.format(data.total)} {data.total === 1 ? 'student' : 'students'}
-              {q ? ' found' : ''}
+              {q || course ? ' found' : ''}
             </p>
           )}
         </div>
-        <div className="filter student-search">
-          <label htmlFor="student-search">Search</label>
-          <input id="student-search" type="search" className="field-select" placeholder="Name, student ID, course or RFID" value={term} onChange={(e) => setTerm(e.target.value)} />
+        <div className="student-filters">
+          <div className="filter">
+            <label htmlFor="student-course">Course</label>
+            <select
+              id="student-course"
+              className="field-select"
+              value={course}
+              onChange={(e) => {
+                setCourse(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All courses</option>
+              {courses.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="filter student-search">
+            <label htmlFor="student-search">Search</label>
+            <input id="student-search" type="search" className="field-select" placeholder="Name, student ID, course or RFID" value={term} onChange={(e) => setTerm(e.target.value)} />
+          </div>
         </div>
       </div>
 
@@ -478,7 +503,7 @@ function StudentList({ refreshKey }) {
       )}
       {!data && !error && <p className="muted pad">Loading students…</p>}
       {data && data.students.length === 0 && (
-        <p className="empty">{q ? 'No students match your search.' : 'No students yet. Add one above or import a CSV file.'}</p>
+        <p className="empty">{q || course ? 'No students match your search.' : 'No students yet. Add one above or import a CSV file.'}</p>
       )}
       {data && data.students.length > 0 && (
         <div className="table-scroll">

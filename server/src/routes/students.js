@@ -51,10 +51,18 @@ router.get('/', async (req, res, next) => {
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 25, 1), PAGE_SIZE_MAX);
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const like = `%${q.replace(/[|%_]/g, '|$&')}%`;
-    const where = q
-      ? `WHERE full_name LIKE ? ESCAPE '|' OR student_id LIKE ? ESCAPE '|' OR course LIKE ? ESCAPE '|' OR rfid_number LIKE ? ESCAPE '|'`
-      : '';
-    const params = q ? [like, like, like, like] : [];
+    const course = typeof req.query.course === 'string' ? req.query.course.trim().slice(0, 100) : '';
+    const clauses = [];
+    const params = [];
+    if (q) {
+      clauses.push(`(full_name LIKE ? ESCAPE '|' OR student_id LIKE ? ESCAPE '|' OR course LIKE ? ESCAPE '|' OR rfid_number LIKE ? ESCAPE '|')`);
+      params.push(like, like, like, like);
+    }
+    if (course) {
+      clauses.push('course = ?');
+      params.push(course);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
     const [{ total }] = await query(`SELECT COUNT(*) AS total FROM students_data ${where}`, params);
     const rows = await query(
@@ -64,8 +72,9 @@ router.get('/', async (req, res, next) => {
         LIMIT ? OFFSET ?`,
       [...params, pageSize, (page - 1) * pageSize]
     );
+    const courses = (await query('SELECT DISTINCT course FROM students_data ORDER BY course ASC')).map((r) => r.course);
     res.set('Cache-Control', 'no-store');
-    res.json({ total: Number(total), page, pageSize, students: rows.map(toStudent) });
+    res.json({ total: Number(total), page, pageSize, courses, students: rows.map(toStudent) });
   } catch (err) {
     next(err);
   }

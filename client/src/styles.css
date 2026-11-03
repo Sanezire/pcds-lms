@@ -2047,6 +2047,10 @@ a:hover {
 .import-problems summary { cursor: pointer; font-weight: 600; }
 .import-problems ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; max-height: 240px; overflow: auto; }
 .student-search { min-width: min(100%, 280px); }
+.student-filters { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 12px 16px; }
+.student-filters .filter { flex: 0 0 auto; width: 240px; }
+.student-filters .student-search { width: 280px; }
+@media (max-width: 640px) { .student-filters .filter, .student-filters .student-search { flex: 1 1 100%; width: auto; } }
 .student-head { padding: 0 0 16px; }
 
 /* ---------- Analytics overview (miniature chart cards) ---------- */
