@@ -151,7 +151,6 @@ router.get('/attendance', async (req, res, next) => {
 
 const OFFSET_MIN = Math.trunc(config.attendance.utcOffsetMinutes);
 const DAY_MS = 24 * 60 * 60 * 1000;
-const MAX_RANGE_DAYS = 366;
 const DAILY_BARS_UP_TO_DAYS = 62; // longer periods are shown one bar per month
 
 // One row per student per school day. The offset is a number from the server
@@ -194,9 +193,6 @@ function resolveRange(q, today) {
       const to = parseDay(q.to, 'End date');
       if (from > to) throw httpError(400, 'The start date cannot be after the end date.');
       if (to > today) throw httpError(400, 'The end date cannot be in the future.');
-      if (daysBetween(from, to) + 1 > MAX_RANGE_DAYS) {
-        throw httpError(400, `Choose a period of up to ${MAX_RANGE_DAYS} days.`);
-      }
       return { from, to };
     }
     default:
@@ -298,15 +294,11 @@ export async function visitsData(q) {
   const monthStart = `${today.slice(0, 7)}-01`;
   const weekStart = addDays(today, -((toDate(today).getUTCDay() + 6) % 7)); // Monday
 
+  const span = daysBetween(from, to) + 1;
   const [rows, sums] = await Promise.all([
-    query(
-      `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
-         FROM (${VISIT_DAYS_SQL}) x
-        WHERE d BETWEEN ? AND ?
-        GROUP BY d
-        ORDER BY d`,
-      [from, to]
-    ),
+    span <= DAILY_BARS_UP_TO_DAYS
+      ? query(`SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d ORDER BY d`, [from, to])
+      : query(`SELECT DATE_FORMAT(d, '%Y-%m') AS month, COUNT(*) AS visits FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY month ORDER BY month`, [from, to]),
     query(
       `SELECT COUNT(*) AS total,
               COALESCE(SUM(d >= ?), 0) AS this_month,
@@ -318,7 +310,7 @@ export async function visitsData(q) {
   ]);
 
   const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
-  const span = daysBetween(from, to) + 1;
+  const perMonth = new Map(rows.map((r) => [r.month, Number(r.visits)]));
   const granularity = span <= DAILY_BARS_UP_TO_DAYS ? 'day' : 'month';
 
   const bars = [];
@@ -328,13 +320,11 @@ export async function visitsData(q) {
       bars.push({ key: day, visits: perDay.get(day) || 0 });
     }
   } else {
-    const byMonth = new Map();
-    for (let i = 0; i < span; i += 1) {
-      const day = addDays(from, i);
-      const key = day.slice(0, 7);
-      byMonth.set(key, (byMonth.get(key) || 0) + (perDay.get(day) || 0));
+    for (let key = from.slice(0, 7); key <= to.slice(0, 7); ) {
+      bars.push({ key, visits: perMonth.get(key) || 0 });
+      const [year, month] = key.split('-').map(Number);
+      key = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`;
     }
-    for (const [key, visits] of byMonth) bars.push({ key, visits });
   }
 
   const sum = sums[0];
@@ -502,8 +492,6 @@ router.get('/trends', async (req, res, next) => {
 // typed in the entry are used (old entries without a year level show as not recorded). Visits by accounts with no
 // program at all (staff, for example) are not student visits and are left out.
 
-const MAX_PROGRAM_RANGE_DAYS = 3660;
-
 async function resolveProgramRange(q, today) {
   const year = Number(today.slice(0, 4));
   switch (q.range ?? 'all') {
@@ -518,7 +506,6 @@ async function resolveProgramRange(q, today) {
       const to = parseDay(q.to, 'End date');
       if (from > to) throw httpError(400, 'The start date cannot be after the end date.');
       if (to > today) throw httpError(400, 'The end date cannot be in the future.');
-      if (daysBetween(from, to) + 1 > MAX_PROGRAM_RANGE_DAYS) throw httpError(400, 'Choose a period of up to 10 years.');
       return { from, to };
     }
     default:
