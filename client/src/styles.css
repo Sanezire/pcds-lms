@@ -2583,3 +2583,4 @@ select.field-select[name="role"] { width: 100%; }
 .theme-toggle-floating:hover {
   background: var(--blue-100);
 }
+.student-save-status { min-height: 1.4em; margin: 14px 0 0; font-size: 0.875rem; }

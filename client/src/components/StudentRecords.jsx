@@ -49,20 +49,20 @@ function Select({ label, error, children, ...props }) {
   );
 }
 
-function StudentFields({ values, errors, set }) {
+function StudentFields({ values, errors, set, onFieldBlur, onSelectCommit, onRfidFocus, onRfidChange, onRfidKeyDown }) {
   const listId = useId();
   return (
     <div className="student-form-grid">
-      <Field label="RFID number (optional)" name="rfidNumber" autoComplete="off" spellCheck="false" placeholder="e.g. 3E5CCBF0" value={values.rfidNumber} onChange={set('rfidNumber')} error={errors.rfidNumber} />
-      <Field label="Student ID" name="studentId" autoComplete="off" placeholder="2025-1042-3" value={values.studentId} onChange={set('studentId')} error={errors.studentId} />
-      <Field label="Full name" name="fullName" autoComplete="off" value={values.fullName} onChange={set('fullName')} error={errors.fullName} />
-      <Field label="Course" name="course" list={listId} autoComplete="off" placeholder="Choose from the list or type a course" value={values.course} onChange={set('course')} error={errors.course} />
+      <Field label="RFID number (optional)" name="rfidNumber" autoComplete="off" spellCheck="false" placeholder="e.g. 3E5CCBF0" value={values.rfidNumber} onChange={onRfidChange || set('rfidNumber')} onFocus={onRfidFocus} onKeyDown={onRfidKeyDown} onBlur={onFieldBlur} error={errors.rfidNumber} />
+      <Field label="Student ID" name="studentId" autoComplete="off" placeholder="2025-1042-3" value={values.studentId} onChange={set('studentId')} onBlur={onFieldBlur} error={errors.studentId} />
+      <Field label="Full name" name="fullName" autoComplete="off" value={values.fullName} onChange={set('fullName')} onBlur={onFieldBlur} error={errors.fullName} />
+      <Field label="Course" name="course" list={listId} autoComplete="off" placeholder="Choose from the list or type a course" value={values.course} onChange={set('course')} onBlur={onFieldBlur} error={errors.course} />
       <datalist id={listId}>
         {COURSES.map((c) => (
           <option key={c} value={c} />
         ))}
       </datalist>
-      <Select label="Gender" value={values.gender} onChange={set('gender')} error={errors.gender}>
+      <Select label="Gender" value={values.gender} onChange={(e) => { set('gender')(e); onSelectCommit?.({ gender: e.target.value }); }} error={errors.gender}>
         <option value="">Select gender</option>
         {GENDERS.map((g) => (
           <option key={g.value} value={g.value}>
@@ -70,7 +70,7 @@ function StudentFields({ values, errors, set }) {
           </option>
         ))}
       </Select>
-      <Select label="Year level" value={values.yearLevel} onChange={set('yearLevel')} error={errors.yearLevel}>
+      <Select label="Year level" value={values.yearLevel} onChange={(e) => { set('yearLevel')(e); onSelectCommit?.({ yearLevel: e.target.value }); }} error={errors.yearLevel}>
         <option value="">Select year level</option>
         {YEARS.map((y) => (
           <option key={y} value={y}>
@@ -130,98 +130,156 @@ function AddStudentForm({ onAdded }) {
   );
 }
 
-function EditStudentForm({ student, onSaved, onClose }) {
-  const [values, setValues] = useState({
+const SCAN_GAP_MS = 60;
+const SCAN_IDLE_MS = 150;
+const MIN_SCAN_LENGTH = 4;
+
+function toValues(student) {
+  return {
     rfidNumber: student.rfidNumber || '',
     studentId: student.studentId,
     fullName: student.fullName,
     course: student.course,
     gender: student.gender,
     yearLevel: String(student.yearLevel),
-  });
+  };
+}
+
+function StudentEditor({ student, closeRef, onSaved, onDelete, onClose }) {
+  const [values, setValues] = useState(() => toValues(student));
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState('');
+  const valuesRef = useRef(values);
+  const savedRef = useRef(JSON.stringify(toValues(student)));
+  const failedRef = useRef('');
+  const savingRef = useRef(false);
+  const burst = useRef({ last: 0, fast: 0, timer: null });
+
+  const update = (next) => {
+    valuesRef.current = next;
+    setValues(next);
+  };
   const set = (k) => (e) => {
-    setValues((v) => ({ ...v, [k]: k === 'rfidNumber' ? e.target.value.toUpperCase() : e.target.value }));
+    update({ ...valuesRef.current, [k]: k === 'rfidNumber' ? e.target.value.toUpperCase() : e.target.value });
     setErrors((er) => ({ ...er, [k]: undefined }));
+    setStatus('');
   };
 
-  async function submit(e) {
-    e.preventDefault();
+  useEffect(() => () => clearTimeout(burst.current.timer), []);
+
+  async function save(next = valuesRef.current, { scanned = false } = {}) {
+    const snapshot = JSON.stringify(next);
+    if (snapshot === savedRef.current || snapshot === failedRef.current || savingRef.current) return true;
+    savingRef.current = true;
     setFormError('');
-    setSaving(true);
+    setStatus('Saving…');
     try {
-      await api(`/students/${student.id}`, { method: 'PATCH', body: values });
-      onSaved();
+      const r = await api(`/students/${student.id}`, { method: 'PATCH', body: next });
+      savedRef.current = snapshot;
+      failedRef.current = '';
+      setErrors({});
+      setStatus('Saved');
+      if (scanned) showSuccessToast('RFID number saved', next.fullName);
+      onSaved(r.student);
+      return true;
     } catch (err) {
+      failedRef.current = snapshot;
       setErrors(err.fields || {});
       setFormError(err.message);
-      setSaving(false);
+      setStatus('');
+      return false;
+    } finally {
+      savingRef.current = false;
     }
   }
 
+  function onRfidChange(e) {
+    const value = e.target.value.toUpperCase();
+    const next = { ...valuesRef.current, rfidNumber: value };
+    update(next);
+    setErrors((er) => ({ ...er, rfidNumber: undefined }));
+    setStatus('');
+    const now = performance.now();
+    const b = burst.current;
+    b.fast = now - b.last < SCAN_GAP_MS ? b.fast + 1 : 0;
+    b.last = now;
+    clearTimeout(b.timer);
+    if (value.length >= MIN_SCAN_LENGTH && b.fast >= value.length - 1) {
+      b.timer = setTimeout(() => save(valuesRef.current, { scanned: true }), SCAN_IDLE_MS);
+    }
+  }
+
+  function onRfidKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(burst.current.timer);
+      const v = valuesRef.current.rfidNumber;
+      save(valuesRef.current, { scanned: v.length >= MIN_SCAN_LENGTH && burst.current.fast >= v.length - 1 });
+      return;
+    }
+    if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
+    const el = e.target;
+    const settled = JSON.parse(failedRef.current || savedRef.current).rfidNumber;
+    if (el.value && el.value === settled && el.selectionStart === el.value.length && el.selectionEnd === el.value.length) {
+      el.select();
+    }
+  }
+
+  function commit(change) {
+    update({ ...valuesRef.current, ...change });
+    save();
+  }
+
+  async function close() {
+    clearTimeout(burst.current.timer);
+    await save();
+    onClose();
+  }
+
+  closeRef.current = close;
+
   return (
-    <form onSubmit={submit} noValidate>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.name !== 'rfidNumber') {
+          e.preventDefault();
+          save();
+        }
+      }}
+      noValidate
+    >
       {formError && (
         <div className="alert alert-error" role="alert">
           {formError}
         </div>
       )}
-      <StudentFields values={values} errors={errors} set={set} />
+      <StudentFields
+        values={values}
+        errors={errors}
+        set={set}
+        onRfidChange={onRfidChange}
+        onRfidFocus={(e) => e.target.select()}
+        onRfidKeyDown={onRfidKeyDown}
+        onFieldBlur={() => save()}
+        onSelectCommit={commit}
+      />
+      <p className="muted student-save-status" role="status">
+        {status || 'Tap a card to fill in the RFID number. Changes save automatically.'}
+      </p>
       <div className="modal-actions">
-        <button type="button" className="btn btn-quiet btn-lg" onClick={onClose}>
-          Cancel
-        </button>
-        <button type="submit" className="btn btn-primary btn-lg" disabled={saving}>
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function StudentDetails({ student, onEdit, onDelete, onClose }) {
-  return (
-    <>
-      <dl className="details modal-details">
-        <div>
-          <dt>Name</dt>
-          <dd>{student.fullName}</dd>
-        </div>
-        <div>
-          <dt>Student ID</dt>
-          <dd>{student.studentId}</dd>
-        </div>
-        <div>
-          <dt>RFID number</dt>
-          <dd>{student.rfidNumber || 'Not assigned'}</dd>
-        </div>
-        <div>
-          <dt>Course</dt>
-          <dd>{student.course}</dd>
-        </div>
-        <div>
-          <dt>Year level</dt>
-          <dd>Year {student.yearLevel}</dd>
-        </div>
-        <div>
-          <dt>Gender</dt>
-          <dd>{genderLabel(student.gender)}</dd>
-        </div>
-      </dl>
-      <div className="modal-actions">
-        <button type="button" className="btn btn-quiet btn-lg" onClick={onClose}>
+        <button type="button" className="btn btn-quiet btn-lg" onClick={close}>
           Close
         </button>
         <button type="button" className="btn btn-quiet btn-danger btn-lg" onClick={onDelete}>
           Delete
         </button>
-        <button type="button" className="btn btn-primary btn-lg" onClick={onEdit}>
-          Edit
-        </button>
       </div>
-    </>
+    </form>
   );
 }
 
@@ -399,6 +457,7 @@ function StudentList({ refreshKey }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
+  const editorClose = useRef(null);
   const latest = useRef(0);
 
   // Search waits for a short pause in typing before asking the server.
@@ -429,7 +488,6 @@ function StudentList({ refreshKey }) {
   }, [load, refreshKey]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
-  const chosen = modal && data ? data.students.find((s) => s.id === modal.id) : null;
   const close = () => setModal(null);
   async function remove(s) {
     const ok = await confirmDelete({
@@ -451,9 +509,8 @@ function StudentList({ refreshKey }) {
       }
     }
   }
-  const saved = () => {
-    close();
-    showSuccessToast('Student updated');
+  const saved = (student) => {
+    setModal((m) => (m ? { ...m, student } : m));
     load();
   };
 
@@ -527,11 +584,11 @@ function StudentList({ refreshKey }) {
                   key={s.id}
                   className="student-row"
                   onClick={(e) => {
-                    if (!e.target.closest('.student-actions, .student-name-btn')) setModal({ type: 'view', id: s.id });
+                    if (!e.target.closest('.student-actions, .student-name-btn')) setModal({ student: s });
                   }}
                 >
                   <td>
-                    <button type="button" className="student-name-btn" onClick={() => setModal({ type: 'view', id: s.id })}>
+                    <button type="button" className="student-name-btn" onClick={() => setModal({ student: s })}>
                       {s.fullName}
                     </button>
                   </td>
@@ -541,7 +598,6 @@ function StudentList({ refreshKey }) {
                   <td>{genderLabel(s.gender)}</td>
                   <td>{s.yearLevel}</td>
                   <td className="student-actions">
-                    <IconButton kind="edit" label={`Edit ${s.fullName}`} onClick={() => setModal({ type: 'edit', id: s.id })} />
                     <IconButton kind="delete" label={`Delete ${s.fullName}`} onClick={() => remove(s)} />
                   </td>
                 </tr>
@@ -565,14 +621,9 @@ function StudentList({ refreshKey }) {
           </div>
         </nav>
       )}
-      {chosen && modal.type === 'view' && (
-        <Modal title="Student record" className="modal-wide" onClose={close}>
-          <StudentDetails student={chosen} onEdit={() => setModal({ type: 'edit', id: chosen.id })} onDelete={() => remove(chosen)} onClose={close} />
-        </Modal>
-      )}
-      {chosen && modal.type === 'edit' && (
-        <Modal title="Edit student" className="modal-wide" onClose={close}>
-          <EditStudentForm student={chosen} onSaved={saved} onClose={close} />
+      {modal && (
+        <Modal title="Student record" className="modal-wide" onClose={() => (editorClose.current ? editorClose.current() : close())}>
+          <StudentEditor key={modal.student.id} closeRef={editorClose} student={modal.student} onSaved={saved} onDelete={() => remove(modal.student)} onClose={close} />
         </Modal>
       )}
     </section>
