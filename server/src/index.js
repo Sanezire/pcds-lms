@@ -41,7 +41,7 @@ app.use('/api/reports', express.json({ limit: '64kb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (req, res) => res.set('Cache-Control', 'no-store').json({ status: 'ok' }));
 
 // Live-update stream: one long-lived connection per open screen, so it sits
 // outside the per-request rate limiter.

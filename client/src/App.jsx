@@ -9,9 +9,12 @@ import Statistics from './pages/Statistics.jsx';
 import Students from './pages/Students.jsx';
 import AuditLogs from './pages/AuditLogs.jsx';
 import { MANAGER_ROLES, SUPER_ADMIN_ONLY } from './auth/roles.js';
+import ServerConnectionMonitor from './components/ServerConnectionMonitor.jsx';
 
 export default function App() {
   return (
+    <>
+    <ServerConnectionMonitor />
     <Routes>
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<Login />} />
@@ -38,5 +41,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </>
   );
 }

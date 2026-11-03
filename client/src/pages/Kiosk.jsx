@@ -15,7 +15,6 @@ const SUBMIT_IDLE_MS = 150; // a scan is sent once typing stops this long, so En
 const MIN_ID_LENGTH = 3;
 const MAX_ID_LENGTH = 32;
 const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
-const HEALTH_MS = 10000;
 const MESSAGE_MS = 5000; // a message pop-up closes by itself after this long
 const MESSAGE_POLL_MS = 3000; // how often the kiosk checks for messages sent from the dashboard
 
@@ -148,7 +147,6 @@ export default function Kiosk() {
   const [phase, setPhase] = useState('idle'); // idle | busy | success | error
   const [result, setResult] = useState(null); // { studentId, action, recordedAt }
   const [message, setMessage] = useState('');
-  const [online, setOnline] = useState(true);
   const [focused, setFocused] = useState(() => document.hasFocus());
 
   const [messages, setMessages] = useState([]); // pop-ups waiting to be shown, first one is on screen
@@ -309,25 +307,7 @@ export default function Kiosk() {
     };
   }, []);
 
-  // Reader status. A keyboard-style reader cannot report its own connection,
-  // so "ready" means the server is reachable and this screen can receive scans.
-  useEffect(() => {
-    let alive = true;
-    const ping = async () => {
-      try {
-        const res = await fetch('/api/health', { cache: 'no-store' });
-        if (alive) setOnline(res.ok);
-      } catch {
-        if (alive) setOnline(false);
-      }
-    };
-    ping();
-    const id = setInterval(ping, HEALTH_MS);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
+  useEffect(() => () => clearTimeout(clearTimer.current), []);
 
   useEffect(() => {
     const on = () => setFocused(true);
@@ -339,15 +319,9 @@ export default function Kiosk() {
       window.removeEventListener('blur', off);
     };
   }, []);
-
-  useEffect(() => () => clearTimeout(clearTimer.current), []);
-
-  let reader = { tone: 'ok', title: 'Reader Ready', note: 'Waiting for the next student…' };
-  if (!online) {
-    reader = { tone: 'bad', title: 'Reader Offline', note: 'Cannot reach the server.' };
-  } else if (!focused) {
-    reader = { tone: 'warn', title: 'Reader Inactive', note: 'Tap anywhere on the screen to activate.' };
-  }
+  const reader = focused
+    ? { tone: 'ok', title: 'Reader Ready', note: 'Waiting for the next student…' }
+    : { tone: 'warn', title: 'Reader Inactive', note: 'Tap anywhere on the screen to activate.' };
 
   return (
     <div className="kiosk">
@@ -470,6 +444,7 @@ export default function Kiosk() {
           <span>{reader.note}</span>
         </span>
       </footer>
+
     </div>
   );
 }
