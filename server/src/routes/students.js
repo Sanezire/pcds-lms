@@ -52,8 +52,12 @@ router.get('/', async (req, res, next) => {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const like = `%${q.replace(/[|%_]/g, '|$&')}%`;
     const course = typeof req.query.course === 'string' ? req.query.course.trim().slice(0, 100) : '';
+    const rfid = typeof req.query.rfid === 'string' ? req.query.rfid : '';
+    if (!['', 'with', 'without'].includes(rfid)) throw httpError(400, 'Invalid RFID filter.');
     const clauses = [];
     const params = [];
+    if (rfid === 'with') clauses.push("(rfid_number IS NOT NULL AND rfid_number <> '')");
+    if (rfid === 'without') clauses.push("(rfid_number IS NULL OR rfid_number = '')");
     if (q) {
       clauses.push(`(full_name LIKE ? ESCAPE '|' OR student_id LIKE ? ESCAPE '|' OR course LIKE ? ESCAPE '|' OR rfid_number LIKE ? ESCAPE '|')`);
       params.push(like, like, like, like);

@@ -457,6 +457,7 @@ function ImportCsv({ onImported }) {
 function StudentList({ refreshKey }) {
   const [term, setTerm] = useState('');
   const [q, setQ] = useState('');
+  const [rfid, setRfid] = useState('');
   const [course, setCourse] = useState('');
   const [courses, setCourses] = useState([]);
   const [page, setPage] = useState(1);
@@ -478,7 +479,7 @@ function StudentList({ refreshKey }) {
   const load = useCallback(async () => {
     const id = ++latest.current;
     try {
-      const r = await api(`/students?q=${encodeURIComponent(q)}&course=${encodeURIComponent(course)}&page=${page}&pageSize=${PAGE_SIZE}`);
+      const r = await api(`/students?q=${encodeURIComponent(q)}&course=${encodeURIComponent(course)}&rfid=${rfid}&page=${page}&pageSize=${PAGE_SIZE}`);
       if (id !== latest.current) return;
       setData(r);
       setCourses(r.courses);
@@ -487,7 +488,7 @@ function StudentList({ refreshKey }) {
     } catch (err) {
       if (id === latest.current) setError(err.message);
     }
-  }, [q, course, page]);
+  }, [q, course, rfid, page]);
 
   useEffect(() => {
     load();
@@ -528,11 +529,27 @@ function StudentList({ refreshKey }) {
           {data && (
             <p className="muted">
               {number.format(data.total)} {data.total === 1 ? 'student' : 'students'}
-              {q || course ? ' found' : ''}
+              {q || course || rfid ? ' found' : ''}
             </p>
           )}
         </div>
         <div className="student-filters">
+          <div className="filter student-rfid">
+            <label htmlFor="student-rfid">RFID</label>
+            <select
+              id="student-rfid"
+              className="field-select"
+              value={rfid}
+              onChange={(e) => {
+                setRfid(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All students</option>
+              <option value="with">With RFID</option>
+              <option value="without">Without RFID</option>
+            </select>
+          </div>
           <div className="filter">
             <label htmlFor="student-course">Course</label>
             <select
@@ -566,7 +583,7 @@ function StudentList({ refreshKey }) {
       )}
       {!data && !error && <p className="muted pad">Loading students…</p>}
       {data && data.students.length === 0 && (
-        <p className="empty">{q || course ? 'No students match your search.' : 'No students yet. Add one above or import a CSV file.'}</p>
+        <p className="empty">{q || course || rfid ? 'No students match your search.' : 'No students yet. Add one above or import a CSV file.'}</p>
       )}
       {data && data.students.length > 0 && (
         <div className="table-scroll">
