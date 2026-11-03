@@ -556,6 +556,11 @@ a:hover {
   color: var(--success);
   border-color: var(--success-line);
 }
+.alert-info {
+  background: var(--blue-100);
+  color: var(--blue-700);
+  border-color: var(--blue-200);
+}
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -2043,6 +2048,15 @@ a:hover {
 .file-btn:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
 .file-name { overflow-wrap: anywhere; }
 .import-result { display: grid; gap: 14px; }
+.import-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 0; }
+.import-summary > div { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--blue-50); }
+.import-summary dt { font-size: 0.875rem; color: var(--muted); }
+.import-summary dd { margin: 2px 0 0; font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.import-summary .summary-added dd { color: var(--success); }
+.import-summary .summary-promoted dd { color: var(--blue-600); }
+.import-summary .summary-failed dd { color: var(--danger); }
+.import-summary .is-zero dd { color: var(--muted); }
+.year-promoted { color: var(--blue-600); font-weight: 700; }
 .import-problems { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--blue-50); }
 .import-problems summary { cursor: pointer; font-weight: 600; }
 .import-problems ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; max-height: 240px; overflow: auto; }

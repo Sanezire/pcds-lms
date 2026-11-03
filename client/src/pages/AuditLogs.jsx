@@ -17,6 +17,7 @@ const ACTION_LABELS = {
   'attendance.delete': 'Attendance deleted',
   'student.add': 'Student added',
   'student.edit': 'Student edited',
+  'student.promote': 'Student promoted',
   'student.delete': 'Student deleted',
   'student.import': 'Students imported',
   'message.rule_add': 'ID message added',

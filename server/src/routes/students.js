@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query } from '../db.js';
+import { query, withTransaction } from '../db.js';
 import { MANAGER_ROLES } from '../config.js';
 import { recordAudit } from '../audit.js';
 import { publish } from '../events.js';
@@ -7,6 +7,7 @@ import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { validateStudentRecord } from '../validation.js';
 import { parseCsv } from '../csv.js';
 import { ensureStudentsTable } from './kiosk.js';
+import { MAX_YEAR_LEVEL, registerOrPromote, yearText } from '../studentPromotion.js';
 
 const router = Router();
 
@@ -90,20 +91,34 @@ router.post('/', async (req, res, next) => {
     if (Object.keys(errors).length) throw httpError(400, 'Check the highlighted fields and try again.', errors);
 
     await ensureStudentsTable();
-    try {
-      await query(
-        `INSERT INTO students_data (rfid_number, student_id, full_name, course, gender, year_level)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [values.rfidNumber, values.studentId, values.fullName, values.course, values.gender, values.yearLevel]
-      );
-    } catch (err) {
-      if (err.code === 'ER_DUP_ENTRY') {
-        throw httpError(409, 'That RFID number or student ID is already registered.', duplicateFields(err));
-      }
-      throw err;
+    const outcome = await withTransaction((tx) => registerOrPromote(tx, values));
+
+    if (outcome.action === 'failed') {
+      throw httpError(409, outcome.reason, { rfidNumber: outcome.reason });
     }
+    if (outcome.action === 'skipped') {
+      return res.json({
+        action: 'skipped',
+        message: `${outcome.name} (${values.studentId}) is already registered and is already in ${yearText(outcome.from)}, the highest year level. Nothing was changed.`,
+      });
+    }
+    if (outcome.action === 'promoted') {
+      publish('attendance');
+      await recordAudit(
+        req,
+        'student.promote',
+        `Promoted student ${outcome.name} (${values.studentId}) from ${yearText(outcome.from)} to ${yearText(outcome.to)}`
+      );
+      return res.json({
+        action: 'promoted',
+        fromYear: outcome.from,
+        toYear: outcome.to,
+        message: `${outcome.name} (${values.studentId}) is already registered. Year level moved from ${yearText(outcome.from)} to ${yearText(outcome.to)}; all other details were kept.`,
+      });
+    }
+
     await recordAudit(req, 'student.add', `Added student ${values.fullName} (${values.studentId}), ${values.course}`);
-    res.status(201).json({ message: 'Student added.' });
+    res.status(201).json({ action: 'added', message: 'Student added.' });
   } catch (err) {
     next(err);
   }
@@ -177,9 +192,6 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
-// CSV import. The same call previews (commit: false) and saves (commit: true);
-// either way every row is checked the same way, and rows that fail are skipped
-// and reported with their line number rather than stopping the whole file.
 router.post('/import', async (req, res, next) => {
   try {
     const csv = typeof req.body?.csv === 'string' ? req.body.csv : '';
@@ -206,63 +218,104 @@ router.post('/import', async (req, res, next) => {
     }
 
     await ensureStudentsTable();
-    const existing = await query('SELECT rfid_number, student_id FROM students_data');
-    const takenRfid = new Set(existing.filter((r) => r.rfid_number).map((r) => r.rfid_number.toUpperCase()));
-    const takenId = new Set(existing.map((r) => r.student_id));
+    const existingRows = await query(
+      'SELECT rfid_number, student_id, full_name, course, gender, year_level FROM students_data'
+    );
+    const existing = new Map(existingRows.map((r) => [r.student_id, r]));
+    const takenRfid = new Set(existingRows.filter((r) => r.rfid_number).map((r) => r.rfid_number.toUpperCase()));
 
-    const good = [];
-    const problems = [];
+    const queue = [];
+    const skippedRows = [];
+    const failedRows = [];
+    const firstLine = new Map();
     for (const { line, cells } of table.slice(1)) {
       const raw = Object.fromEntries(Object.keys(HEADER_ALIASES).map((f) => [f, columnOf[f] === undefined ? '' : cells[columnOf[f]] ?? '']));
       const { errors, values } = validateStudentRecord(raw);
-      if (!errors.rfidNumber && values.rfidNumber && takenRfid.has(values.rfidNumber)) errors.rfidNumber = 'RFID number already in use.';
-      if (!errors.studentId && takenId.has(values.studentId)) errors.studentId = 'Student ID already exists.';
       if (Object.keys(errors).length) {
-        problems.push({ line, name: raw.fullName.trim(), errors: Object.values(errors) });
+        failedRows.push({ line, name: raw.fullName.trim(), reason: Object.values(errors).join(' ') });
         continue;
       }
-      // Later rows in the same file cannot reuse these either.
-      if (values.rfidNumber) takenRfid.add(values.rfidNumber);
-      takenId.add(values.studentId);
-      good.push({ line, values });
-    }
 
-    let added = 0;
-    if (commit) {
-      for (const { line, values } of good) {
-        try {
-          await query(
-            `INSERT INTO students_data (rfid_number, student_id, full_name, course, gender, year_level)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [values.rfidNumber, values.studentId, values.fullName, values.course, values.gender, values.yearLevel]
-          );
-          added += 1;
-        } catch (err) {
-          if (err.code !== 'ER_DUP_ENTRY') throw err;
-          // Someone else added the same card or ID since the check above.
-          problems.push({ line, name: values.fullName, errors: Object.values(duplicateFields(err)) });
-        }
+      if (firstLine.has(values.studentId)) {
+        skippedRows.push({ line, name: values.fullName, reason: `This student ID was already handled on line ${firstLine.get(values.studentId)} of the file.` });
+        continue;
       }
+      firstLine.set(values.studentId, line);
+
+      const current = existing.get(values.studentId);
+      if (current) {
+        const from = Number(current.year_level);
+        if (from >= MAX_YEAR_LEVEL) {
+          skippedRows.push({ line, name: current.full_name, reason: `Already in ${yearText(from)}, the highest year level.` });
+          continue;
+        }
+        queue.push({
+          line,
+          values,
+          preview: {
+            action: 'promoted',
+            rfidNumber: current.rfid_number,
+            studentId: current.student_id,
+            fullName: current.full_name,
+            course: current.course,
+            gender: current.gender,
+            fromYear: from,
+            toYear: from + 1,
+          },
+        });
+        continue;
+      }
+
+      if (values.rfidNumber && takenRfid.has(values.rfidNumber)) {
+        failedRows.push({ line, name: values.fullName, reason: 'RFID number already in use.' });
+        continue;
+      }
+      if (values.rfidNumber) takenRfid.add(values.rfidNumber);
+      queue.push({
+        line,
+        values,
+        preview: { action: 'added', rfidNumber: values.rfidNumber, studentId: values.studentId, fullName: values.fullName, course: values.course, gender: values.gender, yearLevel: values.yearLevel },
+      });
     }
 
+    let added = queue.filter((q) => q.preview.action === 'added').length;
+    let promoted = queue.length - added;
     if (commit) {
+      const outcome = await withTransaction(async (tx) => {
+        const done = { added: 0, promoted: 0, skipped: [], failed: [] };
+        for (const item of queue) {
+          const r = await registerOrPromote(tx, item.values);
+          if (r.action === 'added') done.added += 1;
+          else if (r.action === 'promoted') done.promoted += 1;
+          else if (r.action === 'skipped') done.skipped.push({ line: item.line, name: r.name, reason: r.reason });
+          else done.failed.push({ line: item.line, name: item.values.fullName, reason: r.reason });
+        }
+        return done;
+      });
+      added = outcome.added;
+      promoted = outcome.promoted;
+      skippedRows.push(...outcome.skipped);
+      failedRows.push(...outcome.failed);
+
+      if (promoted > 0) publish('attendance');
       await recordAudit(
         req,
         'student.import',
-        `Imported ${added} ${added === 1 ? 'student' : 'students'} from a CSV file (${problems.length} skipped)`
+        `Imported a CSV file: ${added} added, ${promoted} promoted, ${skippedRows.length} skipped, ${failedRows.length} failed`
       );
     }
 
+    const byLine = (a, b) => a.line - b.line;
     res.json({
       committed: commit,
       total: table.length - 1,
-      valid: commit ? added : good.length,
       added,
-      preview: good.slice(0, 5).map(({ values: v }) => ({
-        rfidNumber: v.rfidNumber, studentId: v.studentId, fullName: v.fullName, course: v.course, gender: v.gender, yearLevel: v.yearLevel,
-      })),
-      problems: problems.sort((a, b) => a.line - b.line).slice(0, 100),
-      problemCount: problems.length,
+      promoted,
+      skipped: skippedRows.length,
+      failed: failedRows.length,
+      preview: queue.slice(0, 5).map((q) => q.preview),
+      skippedRows: skippedRows.sort(byLine).slice(0, 100),
+      failedRows: failedRows.sort(byLine).slice(0, 100),
     });
   } catch (err) {
     next(err);

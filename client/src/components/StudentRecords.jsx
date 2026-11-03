@@ -5,6 +5,7 @@ import { showErrorToast, showSuccessToast } from '../toast.js';
 import Modal from './Modal.jsx';
 import IconButton from './IconButton.jsx';
 import { confirmDelete } from '../confirm.js';
+import { yearLabel } from '../yearLevels.js';
 
 const COURSES = [
   'BS Nursing',
@@ -29,6 +30,7 @@ const MAX_FILE_BYTES = 900 * 1024;
 const PAGE_SIZE = 25;
 const number = new Intl.NumberFormat();
 const genderLabel = (v) => GENDERS.find((g) => g.value === v)?.label || v;
+const ordinal = (n) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
 
 function Select({ label, error, children, ...props }) {
   const id = useId();
@@ -86,22 +88,32 @@ function AddStudentForm({ onAdded }) {
   const [values, setValues] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
+  const [notice, setNotice] = useState(null);
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => {
     setValues((v) => ({ ...v, [k]: k === 'rfidNumber' ? e.target.value.toUpperCase() : e.target.value }));
     setErrors((er) => ({ ...er, [k]: undefined }));
+    setNotice(null);
   };
 
   async function submit(e) {
     e.preventDefault();
     setFormError('');
+    setNotice(null);
     setSaving(true);
     try {
-      await api('/students', { method: 'POST', body: values });
-      showSuccessToast('Student added');
+      const r = await api('/students', { method: 'POST', body: values });
+      if (r.action === 'promoted') {
+        showSuccessToast('Student promoted', `${yearLabel(r.fromYear)} to ${yearLabel(r.toYear)}`);
+        setNotice({ kind: 'success', text: r.message });
+      } else if (r.action === 'skipped') {
+        setNotice({ kind: 'info', text: r.message });
+      } else {
+        showSuccessToast('Student added');
+      }
       setValues(EMPTY);
       setErrors({});
-      onAdded();
+      if (r.action !== 'skipped') onAdded();
     } catch (err) {
       setErrors(err.fields || {});
       setFormError(err.message);
@@ -112,14 +124,23 @@ function AddStudentForm({ onAdded }) {
 
   return (
     <form className="student-form" onSubmit={submit} noValidate>
+      <p className="muted">
+        A student ID that is already registered is not added again. That student moves up one year level and every
+        other detail stays as it is.
+      </p>
       {formError && (
         <div className="alert alert-error" role="alert">
           {formError}
         </div>
       )}
+      {notice && (
+        <div className={`alert ${notice.kind === 'info' ? 'alert-info' : 'alert-success'}`} role="status">
+          {notice.text}
+        </div>
+      )}
       <StudentFields values={values} errors={errors} set={set} />
       <div className="student-form-actions">
-        <button type="button" className="btn btn-quiet" onClick={() => { setValues(EMPTY); setErrors({}); setFormError(''); }}>
+        <button type="button" className="btn btn-quiet" onClick={() => { setValues(EMPTY); setErrors({}); setFormError(''); setNotice(null); }}>
           Clear
         </button>
         <button type="submit" className="btn btn-primary" disabled={saving}>
@@ -310,7 +331,7 @@ function ImportCsv({ onImported }) {
       const r = await api('/students/import', { method: 'POST', body: { csv: text, commit } });
       setResult(r);
       if (commit) {
-        showSuccessToast(`${r.added} ${r.added === 1 ? 'student' : 'students'} imported`);
+        showSuccessToast('Import complete', `${r.added} added, ${r.promoted} promoted, ${r.skipped} skipped, ${r.failed} failed`);
         onImported();
       }
     } catch (err) {
@@ -354,8 +375,10 @@ function ImportCsv({ onImported }) {
       <p className="muted">
         Upload a .csv file with the columns <code>student_id</code>, <code>full_name</code>, <code>course</code>,{' '}
         <code>gender</code> and <code>year_level</code>. The <code>rfid_number</code> column is optional: leave it out or
-        leave a cell blank and the student is saved without a card. The file is checked first and nothing is saved until
-        you confirm.
+        leave a cell blank and the student is saved without a card. A student ID that is already registered is not added
+        again: that student moves up one year level and every other detail is kept. Each student ID is used once per
+        file, and students already in 4th Year are skipped. The file is checked first and nothing is saved until you
+        confirm.
       </p>
       <div className="student-import-pick">
         <label className="btn btn-quiet file-btn">
@@ -379,20 +402,36 @@ function ImportCsv({ onImported }) {
         <div className="import-result" aria-live="polite">
           {done ? (
             <div className="alert alert-success" role="status">
-              Imported {number.format(result.added)} of {number.format(result.total)} rows.
-              {result.problemCount > 0 && ` ${number.format(result.problemCount)} skipped.`}
+              Import finished: {number.format(result.added)} added, {number.format(result.promoted)} promoted,{' '}
+              {number.format(result.skipped)} skipped, {number.format(result.failed)} failed.
             </div>
           ) : (
             <p role="status">
-              <strong>{number.format(result.valid)}</strong> of {number.format(result.total)} rows are ready to import
-              {result.problemCount > 0 && <>, <strong>{number.format(result.problemCount)}</strong> will be skipped</>}.
+              {number.format(result.total)} {result.total === 1 ? 'row' : 'rows'} checked. Nothing is saved until you
+              confirm.
             </p>
           )}
+
+          <dl className="import-summary">
+            {[
+              ['added', done ? 'Added' : 'New students', result.added],
+              ['promoted', done ? 'Promoted' : 'To promote', result.promoted],
+              ['skipped', 'Skipped', result.skipped],
+              ['failed', 'Failed', result.failed],
+            ].map(([key, label, count]) => (
+              <div key={key} className={`summary-${key}${count === 0 ? ' is-zero' : ''}`}>
+                <dt>{label}</dt>
+                <dd>{number.format(count)}</dd>
+              </div>
+            ))}
+          </dl>
 
           {!done && result.preview.length > 0 && (
             <div className="table-scroll">
               <table className="stats-table">
-                <caption className="muted">First {result.preview.length} valid rows</caption>
+                <caption className="muted">
+                  First {result.preview.length} of {number.format(result.added + result.promoted)} changes. A promotion shows the current and new year.
+                </caption>
                 <thead>
                   <tr>
                     <th scope="col">RFID number</th>
@@ -411,7 +450,13 @@ function ImportCsv({ onImported }) {
                       <td>{r.fullName}</td>
                       <td>{r.course}</td>
                       <td>{genderLabel(r.gender)}</td>
-                      <td>{r.yearLevel}</td>
+                      <td>
+                        {r.action === 'promoted' ? (
+                          <span className="year-promoted">{`${ordinal(r.fromYear)} → ${ordinal(r.toYear)}`}</span>
+                        ) : (
+                          ordinal(r.yearLevel)
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -419,23 +464,27 @@ function ImportCsv({ onImported }) {
             </div>
           )}
 
-          {result.problemCount > 0 && (
-            <details className="import-problems" open={!done}>
-              <summary>
-                {number.format(result.problemCount)} {result.problemCount === 1 ? 'row' : 'rows'} skipped
-              </summary>
-              <ul>
-                {result.problems.map((p) => (
-                  <li key={p.line}>
-                    <strong>Line {p.line}</strong>
-                    {p.name ? ` (${p.name})` : ''}: {p.errors.join(' ')}
-                  </li>
-                ))}
-              </ul>
-              {result.problemCount > result.problems.length && (
-                <p className="muted">Showing the first {result.problems.length}.</p>
-              )}
-            </details>
+          {[
+            ['skipped', result.skipped, result.skippedRows],
+            ['failed', result.failed, result.failedRows],
+          ].map(
+            ([key, count, rows]) =>
+              count > 0 && (
+                <details key={key} className="import-problems" open={key === 'failed' && !done}>
+                  <summary>
+                    {number.format(count)} {count === 1 ? 'row' : 'rows'} {key}
+                  </summary>
+                  <ul>
+                    {rows.map((p) => (
+                      <li key={p.line}>
+                        <strong>Line {p.line}</strong>
+                        {p.name ? ` (${p.name})` : ''}: {p.reason}
+                      </li>
+                    ))}
+                  </ul>
+                  {count > rows.length && <p className="muted">Showing the first {rows.length}.</p>}
+                </details>
+              )
           )}
 
           <div className="student-form-actions">
@@ -443,8 +492,8 @@ function ImportCsv({ onImported }) {
               {done ? 'Import another file' : 'Cancel'}
             </button>
             {!done && (
-              <button type="button" className="btn btn-primary" disabled={busy || result.valid === 0} onClick={() => run(file.text, true)}>
-                {busy ? 'Importing…' : `Import ${number.format(result.valid)} ${result.valid === 1 ? 'student' : 'students'}`}
+              <button type="button" className="btn btn-primary" disabled={busy || result.added + result.promoted === 0} onClick={() => run(file.text, true)}>
+                {busy ? 'Importing…' : 'Confirm import'}
               </button>
             )}
           </div>
