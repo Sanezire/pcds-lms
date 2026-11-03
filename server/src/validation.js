@@ -1,7 +1,7 @@
 import { REGISTERABLE_ROLES } from './config.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const NAME_RE = /^[\p{L}][\p{L}\p{M} .'-]*$/u;
+const NAME_RE = /^[\p{L}][\p{L}\p{M} ,.'-]*$/u;
 const MEMBER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_\-/]*$/;
 
 const asString = (v) => (typeof v === 'string' ? v : '');
@@ -29,7 +29,7 @@ export function validateRegistration(body = {}, { autoId = false } = {}) {
   if (fullName.length < 2 || fullName.length > 100) {
     errors.fullName = 'Enter your full name (2 to 100 characters).';
   } else if (!NAME_RE.test(fullName)) {
-    errors.fullName = 'Full name can only contain letters, spaces, periods, apostrophes and hyphens.';
+    errors.fullName = 'Full name can only contain letters, spaces, commas, periods, apostrophes and hyphens.';
   }
 
   if (!email) {
@@ -106,7 +106,7 @@ export function validateManualAttendance(body = {}) {
   const errors = {};
 
   if (name.length < 2 || name.length > 100) errors.name = 'Enter the student’s full name (2 to 100 characters).';
-  else if (!NAME_RE.test(name)) errors.name = 'Name can only contain letters, spaces, periods, apostrophes and hyphens.';
+  else if (!NAME_RE.test(name)) errors.name = 'Name can only contain letters, spaces, commas, periods, apostrophes and hyphens.';
 
   if (!studentId) errors.studentId = 'Enter the student ID.';
   else if (studentId.length < 3 || studentId.length > 32 || !MEMBER_ID_RE.test(studentId))
@@ -174,7 +174,7 @@ export function validateStudentRecord(body = {}) {
   if (rfidNumber && !RFID_RE.test(rfidNumber)) errors.rfidNumber = 'RFID number must be 4 to 32 hexadecimal characters (0-9, A-F).';
   if (!STUDENT_NUMBER_RE.test(studentId)) errors.studentId = 'Student ID must look like 2025-1042-3.';
   if (fullName.length < 2 || fullName.length > 100) errors.fullName = 'Enter the full name (2 to 100 characters).';
-  else if (!NAME_RE.test(fullName)) errors.fullName = 'Name can only contain letters, spaces, periods, apostrophes and hyphens.';
+  else if (!NAME_RE.test(fullName)) errors.fullName = 'Name can only contain letters, spaces, commas, periods, apostrophes and hyphens.';
   if (course.length < 2 || course.length > 100) errors.course = 'Enter the course (2 to 100 characters).';
   if (!gender) errors.gender = 'Choose a gender.';
   if (yearLevel === null) errors.yearLevel = 'Year level must be 1 to 4.';
