@@ -2024,6 +2024,15 @@ a:hover {
 /* ---------- Student records ---------- */
 .student-form { display: grid; gap: 16px; }
 .student-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 18px; }
+.modal-wide { max-width: 680px; }
+.modal .student-form-grid { grid-template-columns: 1fr 1fr; }
+.student-row { cursor: pointer; }
+.student-row:hover td { background: var(--blue-50); }
+.student-name-btn { padding: 0; font: inherit; font-weight: 600; text-align: left; color: var(--ink); background: none; border: 0; cursor: pointer; }
+.student-name-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.student-actions-col { width: 1%; }
+.student-actions { text-align: right; white-space: nowrap; }
+@media (max-width: 560px) { .modal .student-form-grid { grid-template-columns: 1fr; } }
 .student-form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .student-import { display: grid; gap: 14px; }
 .student-import code { background: var(--blue-100); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { MANAGER_ROLES } from '../config.js';
 import { recordAudit } from '../audit.js';
+import { publish } from '../events.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { validateStudentRecord } from '../validation.js';
 import { parseCsv } from '../csv.js';
@@ -90,6 +91,48 @@ router.post('/', async (req, res, next) => {
     }
     await recordAudit(req, 'student.add', `Added student ${values.fullName} (${values.studentId}), ${values.course}`);
     res.status(201).json({ message: 'Student added.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid student.');
+
+    const { errors, values } = validateStudentRecord(req.body);
+    if (Object.keys(errors).length) throw httpError(400, 'Check the highlighted fields and try again.', errors);
+
+    await ensureStudentsTable();
+    const before = await query('SELECT student_id, full_name FROM students_data WHERE id = ?', [id]);
+    if (!before[0]) throw httpError(404, 'Student not found.');
+
+    try {
+      await query(
+        `UPDATE students_data
+            SET rfid_number = ?, student_id = ?, full_name = ?, course = ?, gender = ?, year_level = ?
+          WHERE id = ?`,
+        [values.rfidNumber, values.studentId, values.fullName, values.course, values.gender, values.yearLevel, id]
+      );
+    } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        throw httpError(409, 'That RFID number or student ID is already registered.', duplicateFields(err));
+      }
+      throw err;
+    }
+
+    const rows = await query(
+      'SELECT id, rfid_number, student_id, full_name, course, gender, year_level FROM students_data WHERE id = ?',
+      [id]
+    );
+    publish('attendance');
+    await recordAudit(
+      req,
+      'student.edit',
+      `Edited student ${values.fullName} (${values.studentId}), ${values.course}, year ${values.yearLevel}`
+    );
+    res.json({ student: toStudent(rows[0]) });
   } catch (err) {
     next(err);
   }

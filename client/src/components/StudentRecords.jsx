@@ -2,6 +2,8 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Field } from './Field.jsx';
 import { showSuccessToast } from '../toast.js';
+import Modal from './Modal.jsx';
+import IconButton from './IconButton.jsx';
 
 const COURSES = [
   'BS Nursing',
@@ -45,6 +47,39 @@ function Select({ label, error, children, ...props }) {
   );
 }
 
+function StudentFields({ values, errors, set }) {
+  const listId = useId();
+  return (
+    <div className="student-form-grid">
+      <Field label="RFID number" name="rfidNumber" autoComplete="off" spellCheck="false" placeholder="e.g. 3E5CCBF0" value={values.rfidNumber} onChange={set('rfidNumber')} error={errors.rfidNumber} />
+      <Field label="Student ID" name="studentId" autoComplete="off" placeholder="2025-1042-3" value={values.studentId} onChange={set('studentId')} error={errors.studentId} />
+      <Field label="Full name" name="fullName" autoComplete="off" value={values.fullName} onChange={set('fullName')} error={errors.fullName} />
+      <Field label="Course" name="course" list={listId} autoComplete="off" placeholder="Choose from the list or type a course" value={values.course} onChange={set('course')} error={errors.course} />
+      <datalist id={listId}>
+        {COURSES.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+      <Select label="Gender" value={values.gender} onChange={set('gender')} error={errors.gender}>
+        <option value="">Select gender</option>
+        {GENDERS.map((g) => (
+          <option key={g.value} value={g.value}>
+            {g.label}
+          </option>
+        ))}
+      </Select>
+      <Select label="Year level" value={values.yearLevel} onChange={set('yearLevel')} error={errors.yearLevel}>
+        <option value="">Select year level</option>
+        {YEARS.map((y) => (
+          <option key={y} value={y}>
+            Year {y}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+}
+
 function AddStudentForm({ onAdded }) {
   const [values, setValues] = useState(EMPTY);
   const [errors, setErrors] = useState({});
@@ -80,33 +115,7 @@ function AddStudentForm({ onAdded }) {
           {formError}
         </div>
       )}
-      <div className="student-form-grid">
-        <Field label="RFID number" name="rfidNumber" autoComplete="off" spellCheck="false" placeholder="e.g. 3E5CCBF0" value={values.rfidNumber} onChange={set('rfidNumber')} error={errors.rfidNumber} />
-        <Field label="Student ID" name="studentId" autoComplete="off" placeholder="2025-1042-3" value={values.studentId} onChange={set('studentId')} error={errors.studentId} />
-        <Field label="Full name" name="fullName" autoComplete="off" value={values.fullName} onChange={set('fullName')} error={errors.fullName} />
-        <Field label="Course" name="course" list="student-course-options" autoComplete="off" placeholder="Choose from the list or type a course" value={values.course} onChange={set('course')} error={errors.course} />
-        <datalist id="student-course-options">
-          {COURSES.map((c) => (
-            <option key={c} value={c} />
-          ))}
-        </datalist>
-        <Select label="Gender" value={values.gender} onChange={set('gender')} error={errors.gender}>
-          <option value="">Select gender</option>
-          {GENDERS.map((g) => (
-            <option key={g.value} value={g.value}>
-              {g.label}
-            </option>
-          ))}
-        </Select>
-        <Select label="Year level" value={values.yearLevel} onChange={set('yearLevel')} error={errors.yearLevel}>
-          <option value="">Select year level</option>
-          {YEARS.map((y) => (
-            <option key={y} value={y}>
-              Year {y}
-            </option>
-          ))}
-        </Select>
-      </div>
+      <StudentFields values={values} errors={errors} set={set} />
       <div className="student-form-actions">
         <button type="button" className="btn btn-quiet" onClick={() => { setValues(EMPTY); setErrors({}); setFormError(''); }}>
           Clear
@@ -116,6 +125,98 @@ function AddStudentForm({ onAdded }) {
         </button>
       </div>
     </form>
+  );
+}
+
+function EditStudentForm({ student, onSaved, onClose }) {
+  const [values, setValues] = useState({
+    rfidNumber: student.rfidNumber,
+    studentId: student.studentId,
+    fullName: student.fullName,
+    course: student.course,
+    gender: student.gender,
+    yearLevel: String(student.yearLevel),
+  });
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const set = (k) => (e) => {
+    setValues((v) => ({ ...v, [k]: k === 'rfidNumber' ? e.target.value.toUpperCase() : e.target.value }));
+    setErrors((er) => ({ ...er, [k]: undefined }));
+  };
+
+  async function submit(e) {
+    e.preventDefault();
+    setFormError('');
+    setSaving(true);
+    try {
+      await api(`/students/${student.id}`, { method: 'PATCH', body: values });
+      onSaved();
+    } catch (err) {
+      setErrors(err.fields || {});
+      setFormError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate>
+      {formError && (
+        <div className="alert alert-error" role="alert">
+          {formError}
+        </div>
+      )}
+      <StudentFields values={values} errors={errors} set={set} />
+      <div className="modal-actions">
+        <button type="button" className="btn btn-quiet btn-lg" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="submit" className="btn btn-primary btn-lg" disabled={saving}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function StudentDetails({ student, onEdit, onClose }) {
+  return (
+    <>
+      <dl className="details modal-details">
+        <div>
+          <dt>Name</dt>
+          <dd>{student.fullName}</dd>
+        </div>
+        <div>
+          <dt>Student ID</dt>
+          <dd>{student.studentId}</dd>
+        </div>
+        <div>
+          <dt>RFID number</dt>
+          <dd>{student.rfidNumber}</dd>
+        </div>
+        <div>
+          <dt>Course</dt>
+          <dd>{student.course}</dd>
+        </div>
+        <div>
+          <dt>Year level</dt>
+          <dd>Year {student.yearLevel}</dd>
+        </div>
+        <div>
+          <dt>Gender</dt>
+          <dd>{genderLabel(student.gender)}</dd>
+        </div>
+      </dl>
+      <div className="modal-actions">
+        <button type="button" className="btn btn-quiet btn-lg" onClick={onClose}>
+          Close
+        </button>
+        <button type="button" className="btn btn-primary btn-lg" onClick={onEdit}>
+          Edit
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -289,6 +390,7 @@ function StudentList({ refreshKey }) {
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [modal, setModal] = useState(null);
   const latest = useRef(0);
 
   // Search waits for a short pause in typing before asking the server.
@@ -317,6 +419,13 @@ function StudentList({ refreshKey }) {
   }, [load, refreshKey]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  const chosen = modal && data ? data.students.find((s) => s.id === modal.id) : null;
+  const close = () => setModal(null);
+  const saved = () => {
+    close();
+    showSuccessToast('Student updated');
+    load();
+  };
 
   return (
     <section className="panel table-panel" aria-labelledby="student-list-h">
@@ -356,17 +465,33 @@ function StudentList({ refreshKey }) {
                 <th scope="col">Course</th>
                 <th scope="col">Gender</th>
                 <th scope="col">Year</th>
+                <th scope="col" className="student-actions-col">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {data.students.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.fullName}</td>
+                <tr
+                  key={s.id}
+                  className="student-row"
+                  onClick={(e) => {
+                    if (!e.target.closest('.student-actions, .student-name-btn')) setModal({ type: 'view', id: s.id });
+                  }}
+                >
+                  <td>
+                    <button type="button" className="student-name-btn" onClick={() => setModal({ type: 'view', id: s.id })}>
+                      {s.fullName}
+                    </button>
+                  </td>
                   <td>{s.studentId}</td>
                   <td>{s.rfidNumber}</td>
                   <td>{s.course}</td>
                   <td>{genderLabel(s.gender)}</td>
                   <td>{s.yearLevel}</td>
+                  <td className="student-actions">
+                    <IconButton kind="edit" label={`Edit ${s.fullName}`} onClick={() => setModal({ type: 'edit', id: s.id })} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -387,6 +512,16 @@ function StudentList({ refreshKey }) {
             </button>
           </div>
         </nav>
+      )}
+      {chosen && modal.type === 'view' && (
+        <Modal title="Student record" className="modal-wide" onClose={close}>
+          <StudentDetails student={chosen} onEdit={() => setModal({ type: 'edit', id: chosen.id })} onClose={close} />
+        </Modal>
+      )}
+      {chosen && modal.type === 'edit' && (
+        <Modal title="Edit student" className="modal-wide" onClose={close}>
+          <EditStudentForm student={chosen} onSaved={saved} onClose={close} />
+        </Modal>
       )}
     </section>
   );
