@@ -655,7 +655,7 @@ function StudentList({ refreshKey, view = 'records' }) {
           <table className="stats-table">
             <thead>
               <tr>
-                {view === 'deactivation' && <th><input type="checkbox" aria-label="Select students on this page" onChange={(e) => setSelected(e.target.checked ? data.students.map((s) => s.id) : [])} /></th>}
+                {view === 'deactivation' && <th><input type="checkbox" aria-label="Select students on this page" checked={data.students.length > 0 && data.students.every((s) => selected.includes(s.id))} onChange={(e) => setSelected(e.target.checked ? data.students.map((s) => s.id) : [])} /></th>}
                 <th scope="col">Name</th>
                 <th scope="col">Student ID</th>
                 <th scope="col">RFID number</th>

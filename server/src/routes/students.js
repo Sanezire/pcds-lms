@@ -223,7 +223,7 @@ router.post('/import', async (req, res, next) => {
 
     await ensureStudentsTable();
     const existingRows = await query(
-      "SELECT rfid_number, student_id, full_name, course, gender, year_level, status FROM students_data WHERE status='active'"
+      'SELECT rfid_number, student_id, full_name, course, gender, year_level, status FROM students_data'
     );
     const existing = new Map(existingRows.map((r) => [r.student_id, r]));
     const takenRfid = new Set(existingRows.filter((r) => r.rfid_number).map((r) => r.rfid_number.toUpperCase()));
@@ -248,6 +248,10 @@ router.post('/import', async (req, res, next) => {
 
       const current = existing.get(values.studentId);
       if (current) {
+        if (current.status === 'inactive') {
+          skippedRows.push({ line, name: current.full_name, reason: 'This student is inactive and was skipped.' });
+          continue;
+        }
         const from = Number(current.year_level);
         if (from >= MAX_YEAR_LEVEL) {
           skippedRows.push({ line, name: current.full_name, reason: `Already in ${yearText(from)}, the highest year level.` });
