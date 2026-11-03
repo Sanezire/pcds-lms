@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS students_data (
   course      VARCHAR(100)     NOT NULL,
   gender      ENUM('male', 'female', 'other') NOT NULL,
   year_level  TINYINT UNSIGNED NOT NULL,
+  status      ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

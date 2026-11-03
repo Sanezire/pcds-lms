@@ -35,6 +35,7 @@ const toStudent = (r) => ({
   course: r.course,
   gender: r.gender,
   yearLevel: r.year_level,
+  status: r.status,
 });
 
 // Says which field a duplicate-key error is about.
@@ -54,6 +55,8 @@ router.get('/', async (req, res, next) => {
     const like = `%${q.replace(/[|%_]/g, '|$&')}%`;
     const course = typeof req.query.course === 'string' ? req.query.course.trim().slice(0, 100) : '';
     const rfid = typeof req.query.rfid === 'string' ? req.query.rfid : '';
+    const status = typeof req.query.status === 'string' ? req.query.status : 'active';
+    if (!['active','inactive','all'].includes(status)) throw httpError(400, 'Invalid status filter.');
     if (!['', 'with', 'without'].includes(rfid)) throw httpError(400, 'Invalid RFID filter.');
     const clauses = [];
     const params = [];
@@ -67,11 +70,12 @@ router.get('/', async (req, res, next) => {
       clauses.push('course = ?');
       params.push(course);
     }
+    if (status !== 'all') { clauses.push('status = ?'); params.push(status); }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
     const [{ total }] = await query(`SELECT COUNT(*) AS total FROM students_data ${where}`, params);
     const rows = await query(
-      `SELECT id, rfid_number, student_id, full_name, course, gender, year_level
+      `SELECT id, rfid_number, student_id, full_name, course, gender, year_level, status
          FROM students_data ${where}
         ORDER BY full_name ASC, id ASC
         LIMIT ? OFFSET ?`,
@@ -219,7 +223,7 @@ router.post('/import', async (req, res, next) => {
 
     await ensureStudentsTable();
     const existingRows = await query(
-      'SELECT rfid_number, student_id, full_name, course, gender, year_level FROM students_data'
+      "SELECT rfid_number, student_id, full_name, course, gender, year_level, status FROM students_data WHERE status='active'"
     );
     const existing = new Map(existingRows.map((r) => [r.student_id, r]));
     const takenRfid = new Set(existingRows.filter((r) => r.rfid_number).map((r) => r.rfid_number.toUpperCase()));
@@ -320,6 +324,54 @@ router.post('/import', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Deactivate selected records without deleting their student or attendance history.
+router.post('/deactivate', async (req, res, next) => {
+  try {
+    const ids = [...new Set((Array.isArray(req.body?.studentIds) ? req.body.studentIds : []).map(Number))];
+    if (!ids.length || ids.length > 2000 || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw httpError(400, 'Choose valid students to deactivate.');
+    const marks = ids.map(() => '?').join(',');
+    const rows = await query(`SELECT id, student_id, full_name FROM students_data WHERE id IN (${marks}) AND status='active'`, ids);
+    await query(`UPDATE students_data SET status='inactive' WHERE id IN (${marks}) AND status='active'`, ids);
+    for (const s of rows) await recordAudit(req, 'student.deactivate', `Deactivated student ${s.full_name} (${s.student_id})`);
+    publish('attendance');
+    res.json({ deactivated: rows.length, unmatched: ids.length - rows.length });
+  } catch (err) { next(err); }
+});
+
+router.post('/reactivate', async (req, res, next) => {
+  try {
+    const ids = [...new Set((Array.isArray(req.body?.studentIds) ? req.body.studentIds : []).map(Number))];
+    if (!ids.length || ids.length > 2000 || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw httpError(400, 'Choose valid students to reactivate.');
+    const marks = ids.map(() => '?').join(',');
+    const rows = await query(`SELECT id,student_id,full_name FROM students_data WHERE id IN (${marks}) AND status='inactive'`, ids);
+    await query(`UPDATE students_data SET status='active' WHERE id IN (${marks}) AND status='inactive'`, ids);
+    for (const s of rows) await recordAudit(req, 'student.reactivate', `Reactivated student ${s.full_name} (${s.student_id})`);
+    publish('attendance');
+    res.json({ reactivated: rows.length, unmatched: ids.length - rows.length });
+  } catch (err) { next(err); }
+});
+
+router.post('/deactivate/import', async (req, res, next) => {
+  try {
+    const csv = typeof req.body?.csv === 'string' ? req.body.csv : '';
+    const commit = req.body?.commit === true;
+    const table = parseCsv(csv);
+    if (table.length < 2 || table.length - 1 > MAX_IMPORT_ROWS) throw httpError(400, 'Provide a CSV with a header and up to 2,000 student rows.');
+    const idCol = table[0].cells.findIndex((h) => ['studentid','studentnumber','studentno','id'].includes(h.toLowerCase().replace(/[^a-z]/g,'')));
+    if (idCol < 0) throw httpError(400, 'CSV must include a student_id column.');
+    const ids = [...new Set(table.slice(1).map((r) => (r.cells[idCol] || '').trim()).filter(Boolean))];
+    const matches = ids.length ? await query(`SELECT id,student_id,full_name,course,year_level FROM students_data WHERE status='active' AND student_id IN (${ids.map(()=>'?').join(',')})`, ids) : [];
+    const matched = new Map(matches.map((s) => [s.student_id,s]));
+    const unmatched = ids.filter((id) => !matched.has(id));
+    if (commit && matches.length) {
+      await query(`UPDATE students_data SET status='inactive' WHERE id IN (${matches.map(()=>'?').join(',')})`, matches.map((s)=>s.id));
+      for (const s of matches) await recordAudit(req,'student.deactivate',`Deactivated student ${s.full_name} (${s.student_id}) by CSV import`);
+      publish('attendance');
+    }
+    res.json({ committed:commit, total:ids.length, deactivated:matches.length, matched:matches, unmatched });
+  } catch (err) { next(err); }
 });
 
 export default router;

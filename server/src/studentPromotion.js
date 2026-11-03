@@ -9,6 +9,7 @@ export function yearText(level) {
 function promote(found) {
   const from = Number(found.year_level);
   const base = { id: found.id, name: found.full_name, from };
+  if (found.status === 'inactive') return { ...base, action: 'skipped', reason: 'Student is inactive.' };
   if (from >= MAX_YEAR_LEVEL) {
     return { ...base, action: 'skipped', reason: `Already in ${yearText(from)}, the highest year level.` };
   }
@@ -18,7 +19,7 @@ function promote(found) {
 export async function registerOrPromote(tx, values) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const rows = await tx.query(
-      'SELECT id, full_name, year_level FROM students_data WHERE student_id = ? FOR UPDATE',
+      'SELECT id, full_name, year_level, status FROM students_data WHERE student_id = ? FOR UPDATE',
       [values.studentId]
     );
     if (rows[0]) {

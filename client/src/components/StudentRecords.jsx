@@ -503,10 +503,12 @@ function ImportCsv({ onImported }) {
   );
 }
 
-function StudentList({ refreshKey }) {
+function StudentList({ refreshKey, view = 'records' }) {
   const [term, setTerm] = useState('');
   const [q, setQ] = useState('');
   const [rfid, setRfid] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
+  const [selected, setSelected] = useState([]);
   const [course, setCourse] = useState('');
   const [courses, setCourses] = useState([]);
   const [page, setPage] = useState(1);
@@ -528,7 +530,7 @@ function StudentList({ refreshKey }) {
   const load = useCallback(async () => {
     const id = ++latest.current;
     try {
-      const r = await api(`/students?q=${encodeURIComponent(q)}&course=${encodeURIComponent(course)}&rfid=${rfid}&page=${page}&pageSize=${PAGE_SIZE}`);
+      const r = await api(`/students?q=${encodeURIComponent(q)}&course=${encodeURIComponent(course)}&rfid=${rfid}&status=${statusFilter}&page=${page}&pageSize=${PAGE_SIZE}`);
       if (id !== latest.current) return;
       setData(r);
       setCourses(r.courses);
@@ -537,7 +539,18 @@ function StudentList({ refreshKey }) {
     } catch (err) {
       if (id === latest.current) setError(err.message);
     }
-  }, [q, course, rfid, page]);
+  }, [q, course, rfid, statusFilter, page]);
+
+  async function changeStatus(ids, nextStatus) {
+    if (!ids.length) return;
+    try {
+      const action = nextStatus === 'active' ? 'reactivate' : 'deactivate';
+      const r = await api(`/students/${action}`, { method: 'POST', body: { studentIds: ids } });
+      showSuccessToast(nextStatus === 'active' ? 'Students reactivated' : 'Students deactivated', `${nextStatus === 'active' ? r.reactivated : r.deactivated} updated`);
+      setSelected([]);
+      load();
+    } catch (err) { showErrorToast('Could not deactivate', err.message); }
+  }
 
   useEffect(() => {
     load();
@@ -583,6 +596,7 @@ function StudentList({ refreshKey }) {
           )}
         </div>
         <div className="student-filters">
+          {view === 'deactivation' && <div className="filter"><label htmlFor="student-status">Status</label><select id="student-status" className="field-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All</option></select></div>}
           <div className="filter student-rfid">
             <label htmlFor="student-rfid">RFID</label>
             <select
@@ -635,19 +649,23 @@ function StudentList({ refreshKey }) {
         <p className="empty">{q || course || rfid ? 'No students match your search.' : 'No students yet. Add one above or import a CSV file.'}</p>
       )}
       {data && data.students.length > 0 && (
+        <>
+        {view === 'deactivation' && selected.length > 0 && <div className="student-selection-actions"><button type="button" className="btn btn-quiet" onClick={() => changeStatus(selected, 'inactive')}>Deactivate selected ({selected.filter((id) => data.students.find((s) => s.id === id)?.status === 'active').length})</button><button type="button" className="btn btn-quiet" onClick={() => changeStatus(selected, 'active')}>Reactivate selected ({selected.filter((id) => data.students.find((s) => s.id === id)?.status === 'inactive').length})</button></div>}
         <div className="table-scroll">
           <table className="stats-table">
             <thead>
               <tr>
+                {view === 'deactivation' && <th><input type="checkbox" aria-label="Select students on this page" onChange={(e) => setSelected(e.target.checked ? data.students.map((s) => s.id) : [])} /></th>}
                 <th scope="col">Name</th>
                 <th scope="col">Student ID</th>
                 <th scope="col">RFID number</th>
                 <th scope="col">Course</th>
                 <th scope="col">Gender</th>
                 <th scope="col">Year</th>
-                <th scope="col" className="student-actions-col">
+                {view === 'deactivation' && <th scope="col">Status</th>}
+                {view === 'records' && <th scope="col" className="student-actions-col">
                   <span className="sr-only">Actions</span>
-                </th>
+                </th>}
               </tr>
             </thead>
             <tbody>
@@ -656,9 +674,10 @@ function StudentList({ refreshKey }) {
                   key={s.id}
                   className="student-row"
                   onClick={(e) => {
-                    if (!e.target.closest('.student-actions, .student-name-btn')) setModal({ student: s });
+                    if (!e.target.closest('.student-actions, .student-name-btn, input, button')) setModal({ student: s });
                   }}
                 >
+                  {view === 'deactivation' && <td><input type="checkbox" aria-label={`Select ${s.fullName}`} checked={selected.includes(s.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => setSelected((old) => e.target.checked ? [...old, s.id] : old.filter((id) => id !== s.id))} /></td>}
                   <td>
                     <button type="button" className="student-name-btn" onClick={() => setModal({ student: s })}>
                       {s.fullName}
@@ -669,14 +688,14 @@ function StudentList({ refreshKey }) {
                   <td>{s.course}</td>
                   <td>{genderLabel(s.gender)}</td>
                   <td>{s.yearLevel}</td>
-                  <td className="student-actions">
-                    <IconButton kind="delete" label={`Delete ${s.fullName}`} onClick={() => remove(s)} />
-                  </td>
+                  {view === 'deactivation' && <td className="student-status-cell"><span>{s.status}</span><button type="button" className="btn btn-quiet" onClick={() => changeStatus([s.id], s.status === 'active' ? 'inactive' : 'active')}>{s.status === 'active' ? 'Deactivate' : 'Reactivate'}</button></td>}
+                  {view === 'records' && <td className="student-actions"><IconButton kind="delete" label={`Delete ${s.fullName}`} onClick={() => remove(s)} /></td>}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        </>
       )}
       {data && totalPages > 1 && (
         <nav className="pager" aria-label="Student pages">
@@ -695,21 +714,37 @@ function StudentList({ refreshKey }) {
       )}
       {modal && (
         <Modal title="Student record" className="modal-wide" onClose={() => (editorClose.current ? editorClose.current() : close())}>
-          <StudentEditor key={modal.student.id} closeRef={editorClose} student={modal.student} onSaved={saved} onDelete={() => remove(modal.student)} onClose={close} />
+          {view === 'deactivation' ? <div className="student-deactivation-modal">
+            <div className="student-readonly-grid">{[['RFID number', modal.student.rfidNumber || 'Not assigned'],['Student ID',modal.student.studentId],['Full name',modal.student.fullName],['Course',modal.student.course],['Gender',genderLabel(modal.student.gender)],['Year level',`Year ${modal.student.yearLevel}`]].map(([label,value])=><div className="field" key={label}><label>{label}</label><div className="field-select" aria-readonly="true">{value}</div></div>)}</div>
+            <div className="modal-actions"><button type="button" className="btn btn-quiet btn-lg" onClick={close}>Close</button><button type="button" className="btn btn-quiet btn-danger btn-lg" onClick={async()=>{await changeStatus([modal.student.id], modal.student.status === 'active' ? 'inactive' : 'active');close();}}>{modal.student.status === 'active' ? 'Deactivate' : 'Reactivate'}</button></div>
+          </div> : <StudentEditor key={modal.student.id} closeRef={editorClose} student={modal.student} onSaved={saved} onDelete={() => remove(modal.student)} onClose={close} />}
         </Modal>
       )}
     </section>
   );
 }
 
-export default function StudentRecords() {
+export default function StudentRecords({ view = 'records' }) {
   const [mode, setMode] = useState('manual');
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
+  const [deactivationCsv, setDeactivationCsv] = useState('');
+  const [deactivationPreview, setDeactivationPreview] = useState(null);
+  const [deactivationError, setDeactivationError] = useState('');
+  async function previewDeactivation(file) {
+    if (!file) return;
+    const csv = await file.text(); setDeactivationCsv(csv); setDeactivationError('');
+    try { setDeactivationPreview(await api('/students/deactivate/import', { method: 'POST', body: { csv, commit: false } })); }
+    catch (err) { setDeactivationPreview(null); setDeactivationError(err.message); }
+  }
+  async function confirmDeactivation() {
+    try { const r = await api('/students/deactivate/import', { method: 'POST', body: { csv: deactivationCsv, commit: true } }); setDeactivationPreview(r); refresh(); }
+    catch (err) { setDeactivationError(err.message); }
+  }
 
   return (
     <>
-      <section className="panel" aria-labelledby="add-student-h">
+      {view === 'records' && <section className="panel" aria-labelledby="add-student-h">
         <div className="table-head student-head">
           <div>
             <h2 id="add-student-h">Add students</h2>
@@ -727,8 +762,13 @@ export default function StudentRecords() {
           </div>
         </div>
         {mode === 'manual' ? <AddStudentForm onAdded={refresh} /> : <ImportCsv onImported={refresh} />}
-      </section>
-      <StudentList refreshKey={refreshKey} />
+      </section>}
+      {view === 'deactivation' && <section className="panel" aria-labelledby="deactivation-h">
+        <div className="table-head"><div><h2 id="deactivation-h">Student Deactivation</h2><p className="muted">Upload a CSV with a student_id column. Matching active students are deactivated; unmatched IDs are reported separately.</p></div><label className="btn btn-quiet file-btn"><input type="file" accept=".csv,text/csv" onChange={(e) => previewDeactivation(e.target.files?.[0])} />Choose deactivation CSV</label></div>
+        {deactivationError && <div className="alert alert-error" role="alert">{deactivationError}</div>}
+        {deactivationPreview && <><p>{deactivationPreview.committed ? 'Deactivation complete.' : `Preview: ${deactivationPreview.deactivated} matched; ${deactivationPreview.unmatched.length} unmatched; ${deactivationPreview.deactivated} will be deactivated.`}</p><p className="muted">Matched: {deactivationPreview.matched.map((s) => `${s.full_name} (${s.student_id})`).join(', ') || 'None'}</p><p className="muted">Unmatched: {deactivationPreview.unmatched.join(', ') || 'None'}</p>{!deactivationPreview.committed && deactivationPreview.deactivated > 0 && <button type="button" className="btn btn-primary" onClick={confirmDeactivation}>Confirm deactivation</button>}</>}
+      </section>}
+      <StudentList key={view} refreshKey={refreshKey} view={view} />
     </>
   );
 }

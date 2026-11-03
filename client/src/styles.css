@@ -2056,16 +2056,21 @@ a:hover {
 .import-summary .summary-promoted dd { color: var(--blue-600); }
 .import-summary .summary-failed dd { color: var(--danger); }
 .import-summary .is-zero dd { color: var(--muted); }
+.student-readonly-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 26px; row-gap: 24px; }
+.student-status-cell { white-space: nowrap; }
+.student-status-cell > span { display: inline-block; margin-right: 12px; }
+.student-readonly-grid .field-select { min-height: 70px; display: flex; align-items: center; overflow-wrap: anywhere; white-space: normal; }
+.student-deactivation-modal .modal-actions { margin-top: 22px; }
+@media (max-width: 640px) { .student-readonly-grid { grid-template-columns: 1fr; row-gap: 14px; } }
 .year-promoted { color: var(--blue-600); font-weight: 700; }
 .import-problems { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--blue-50); }
 .import-problems summary { cursor: pointer; font-weight: 600; }
 .import-problems ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; max-height: 240px; overflow: auto; }
-.student-search { min-width: min(100%, 280px); }
-.student-filters { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 12px 16px; }
-.student-filters .filter { flex: 0 0 auto; width: 240px; }
-.student-filters .student-rfid { width: 180px; }
-.student-filters .student-search { width: 280px; }
-@media (max-width: 640px) { .student-filters .filter, .student-filters .student-rfid, .student-filters .student-search { flex: 1 1 100%; width: auto; } }
+.student-search { min-width: 0; }
+.student-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 12px 16px; flex: 1 1 100%; width: 100%; }
+.student-filters .filter, .student-filters .student-rfid, .student-filters .student-search { width: auto; min-width: 0; }
+@media (max-width: 900px) { .student-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .student-filters { grid-template-columns: 1fr; } }
 .student-head { padding: 0 0 16px; }
 
 /* ---------- Analytics overview (miniature chart cards) ---------- */

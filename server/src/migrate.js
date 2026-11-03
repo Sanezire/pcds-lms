@@ -75,6 +75,8 @@ export async function ensureSchema() {
 
   // Prepare the student table before migrating attendance.
   await ensureStudentsTable();
+  const hasStatus = await query("SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='students_data' AND column_name='status'");
+  if (!hasStatus.length) await query("ALTER TABLE students_data ADD COLUMN status ENUM('active','inactive') NOT NULL DEFAULT 'active'");
   const columns = async (table) => (await query(`SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`, [table])).map((r) => r.COLUMN_NAME);
   const hasTable = async (table) => (await query('SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?', [table])).length > 0;
   if (!(await hasTable('attendance'))) return;

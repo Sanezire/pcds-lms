@@ -31,7 +31,7 @@ function startOfLocalDayUtc(nowMs) {
 // RFID attendance belongs to a registered student record.
 async function findSubject(scanned) {
   await ensureStudentsTable();
-  const cards = await query('SELECT id, student_id FROM students_data WHERE rfid_number = ? LIMIT 1', [
+  const cards = await query("SELECT id, student_id FROM students_data WHERE rfid_number = ? AND status='active' LIMIT 1", [
     scanned.toUpperCase(),
   ]);
   if (cards[0]) return { column: 'student_data_id', id: cards[0].id, label: cards[0].student_id };

@@ -46,6 +46,7 @@ router.get('/students', async (req, res, next) => {
     const like = `%${q.replace(/[|%_]/g, '|$&')}%`;
     const rows = await query(
       `SELECT s.student_id, s.full_name, s.course, s.year_level, s.gender,
+              s.status = 'inactive' AS inactive,
               EXISTS (SELECT 1 FROM attendance m
                        WHERE m.type = 'manual' AND m.student_id = s.student_id AND m.time_out IS NULL) AS timed_in
          FROM students_data s
@@ -166,6 +167,9 @@ router.post('/', async (req, res, next) => {
     if (Object.keys(errors).length) {
       throw httpError(400, 'Check the highlighted fields and try again.', errors);
     }
+
+    const active = await query("SELECT status FROM students_data WHERE student_id = ?", [values.studentId]);
+    if (active[0]?.status === 'inactive') throw httpError(409, 'This student is inactive and cannot be timed in.');
 
     let result;
     try {
