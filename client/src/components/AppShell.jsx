@@ -24,7 +24,7 @@ export default function AppShell() {
         </div>
         <nav aria-label="Main">
           <NavLink to="/dashboard">Dashboard</NavLink>
-          {canManage && <NavLink to="/statistics">Statistics</NavLink>}
+          {canManage && <NavLink to="/statistics">Attendance</NavLink>}
           {canManage && <NavLink to="/students">Students</NavLink>}
           {isSuperAdmin && <NavLink to="/audit-logs">Audit Logs</NavLink>}
           {canManage && (

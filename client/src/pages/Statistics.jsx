@@ -303,7 +303,7 @@ function AttendanceLogs() {
 }
 
 const VIEWS = [
-  { id: 'statistics', label: 'Statistics', lead: 'Attendance logs from the RFID kiosk and manual entries.' },
+  { id: 'statistics', label: 'Attendance', lead: 'Attendance logs from the RFID kiosk and manual entries.' },
   { id: 'analytics', label: 'Analytics', lead: 'Library visits over time, from the RFID kiosk and manual entries.' },
 ];
 
@@ -322,7 +322,7 @@ export default function Statistics() {
   return (
     <div className="stats">
       <header className="stats-head">
-        <div className="view-tabs" role="tablist" aria-label="Statistics views">
+        <div className="view-tabs" role="tablist" aria-label="Attendance views">
           {VIEWS.map((v) => (
             <button
               key={v.id}
