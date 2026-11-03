@@ -133,6 +133,7 @@ function AddStudentForm({ onAdded }) {
 const SCAN_GAP_MS = 60;
 const SCAN_IDLE_MS = 150;
 const MIN_SCAN_LENGTH = 4;
+const CLOSE_DELAY_MS = 500;
 
 function toValues(student) {
   return {
@@ -168,8 +169,12 @@ function StudentEditor({ student, closeRef, onSaved, onDelete, onClose }) {
 
   useEffect(() => () => clearTimeout(burst.current.timer), []);
 
-  async function save(next = valuesRef.current, { scanned = false } = {}) {
+  async function save(next = valuesRef.current, { scanned = false, closeAfter = false } = {}) {
     const snapshot = JSON.stringify(next);
+    if (snapshot === savedRef.current && closeAfter && !savingRef.current) {
+      onClose();
+      return true;
+    }
     if (snapshot === savedRef.current || snapshot === failedRef.current || savingRef.current) return true;
     savingRef.current = true;
     setFormError('');
@@ -182,6 +187,7 @@ function StudentEditor({ student, closeRef, onSaved, onDelete, onClose }) {
       setStatus('Saved');
       if (scanned) showSuccessToast('RFID number saved', next.fullName);
       onSaved(r.student);
+      if (closeAfter) setTimeout(onClose, CLOSE_DELAY_MS);
       return true;
     } catch (err) {
       failedRef.current = snapshot;
@@ -206,7 +212,7 @@ function StudentEditor({ student, closeRef, onSaved, onDelete, onClose }) {
     b.last = now;
     clearTimeout(b.timer);
     if (value.length >= MIN_SCAN_LENGTH && b.fast >= value.length - 1) {
-      b.timer = setTimeout(() => save(valuesRef.current, { scanned: true }), SCAN_IDLE_MS);
+      b.timer = setTimeout(() => save(valuesRef.current, { scanned: true, closeAfter: true }), SCAN_IDLE_MS);
     }
   }
 
@@ -215,7 +221,7 @@ function StudentEditor({ student, closeRef, onSaved, onDelete, onClose }) {
       e.preventDefault();
       clearTimeout(burst.current.timer);
       const v = valuesRef.current.rfidNumber;
-      save(valuesRef.current, { scanned: v.length >= MIN_SCAN_LENGTH && burst.current.fast >= v.length - 1 });
+      save(valuesRef.current, { scanned: v.length >= MIN_SCAN_LENGTH && burst.current.fast >= v.length - 1, closeAfter: true });
       return;
     }
     if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -248,7 +254,7 @@ function StudentEditor({ student, closeRef, onSaved, onDelete, onClose }) {
       onKeyDown={(e) => {
         if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.name !== 'rfidNumber') {
           e.preventDefault();
-          save();
+          save(valuesRef.current, { closeAfter: true });
         }
       }}
       noValidate
@@ -269,7 +275,7 @@ function StudentEditor({ student, closeRef, onSaved, onDelete, onClose }) {
         onSelectCommit={commit}
       />
       <p className="muted student-save-status" role="status">
-        {status || 'Tap a card to fill in the RFID number. Changes save automatically.'}
+        {status || 'Tap a card to fill in the RFID number. It saves and closes on its own.'}
       </p>
       <div className="modal-actions">
         <button type="button" className="btn btn-quiet btn-lg" onClick={close}>
