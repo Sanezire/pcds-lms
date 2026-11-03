@@ -2056,13 +2056,10 @@ a:hover {
 .import-summary .summary-promoted dd { color: var(--blue-600); }
 .import-summary .summary-failed dd { color: var(--danger); }
 .import-summary .is-zero dd { color: var(--muted); }
-.student-readonly-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 26px; row-gap: 24px; }
 .student-status-cell { white-space: nowrap; }
 .student-status-cell > span { display: inline-block; margin-right: 12px; }
 .student-selection-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 12px 30px; }
-.student-readonly-grid .field-select { min-height: 70px; display: flex; align-items: center; overflow-wrap: anywhere; white-space: normal; }
-.student-deactivation-modal .modal-actions { margin-top: 22px; }
-@media (max-width: 640px) { .student-readonly-grid { grid-template-columns: 1fr; row-gap: 14px; } }
+.student-deactivation-modal .field-select { display: flex; align-items: center; overflow-wrap: anywhere; white-space: normal; }
 .year-promoted { color: var(--blue-600); font-weight: 700; }
 .import-problems { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--blue-50); }
 .import-problems summary { cursor: pointer; font-weight: 600; }

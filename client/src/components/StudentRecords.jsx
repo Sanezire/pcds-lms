@@ -714,8 +714,8 @@ function StudentList({ refreshKey, view = 'records' }) {
       )}
       {modal && (
         <Modal title="Student record" className="modal-wide" onClose={() => (editorClose.current ? editorClose.current() : close())}>
-          {view === 'deactivation' ? <div className="student-deactivation-modal">
-            <div className="student-readonly-grid">{[['RFID number', modal.student.rfidNumber || 'Not assigned'],['Student ID',modal.student.studentId],['Full name',modal.student.fullName],['Course',modal.student.course],['Gender',genderLabel(modal.student.gender)],['Year level',`Year ${modal.student.yearLevel}`]].map(([label,value])=><div className="field" key={label}><label>{label}</label><div className="field-select" aria-readonly="true">{value}</div></div>)}</div>
+          {view === 'deactivation' ? <div className="student-form student-deactivation-modal">
+            <div className="student-form-grid">{[['RFID number', modal.student.rfidNumber || 'Not assigned'],['Student ID',modal.student.studentId],['Full name',modal.student.fullName],['Course',modal.student.course],['Gender',genderLabel(modal.student.gender)],['Year level',`Year ${modal.student.yearLevel}`]].map(([label,value])=><div className="field" key={label}><label>{label}</label><div className="field-select" aria-readonly="true">{value}</div></div>)}</div>
             <div className="modal-actions"><button type="button" className="btn btn-quiet btn-lg" onClick={close}>Close</button><button type="button" className="btn btn-quiet btn-danger btn-lg" onClick={async()=>{await changeStatus([modal.student.id], modal.student.status === 'active' ? 'inactive' : 'active');close();}}>{modal.student.status === 'active' ? 'Deactivate' : 'Reactivate'}</button></div>
           </div> : <StudentEditor key={modal.student.id} closeRef={editorClose} student={modal.student} onSaved={saved} onDelete={() => remove(modal.student)} onClose={close} />}
         </Modal>
