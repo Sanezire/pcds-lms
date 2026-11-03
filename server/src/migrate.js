@@ -12,7 +12,7 @@ export function ensureStudentsTable() {
     studentsTableReady = query(
       `CREATE TABLE IF NOT EXISTS students_data (
          id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
-         rfid_number VARCHAR(32)      NOT NULL,
+         rfid_number VARCHAR(32)      NULL,
          student_id  VARCHAR(11)      NOT NULL,
          full_name   VARCHAR(100)     NOT NULL,
          course      VARCHAR(100)     NOT NULL,
@@ -27,10 +27,18 @@ export function ensureStudentsTable() {
          CONSTRAINT chk_students_data_student CHECK (student_id REGEXP '^[0-9]{4}-[0-9]{4}-[0-9]$'),
          CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
-    ).catch((err) => {
-      studentsTableReady = null;
-      throw err;
-    });
+    )
+      .then(async () => {
+        const col = await query(
+          `SELECT IS_NULLABLE AS n FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'students_data' AND column_name = 'rfid_number'`
+        );
+        if (col[0] && col[0].n === 'NO') await query('ALTER TABLE students_data MODIFY rfid_number VARCHAR(32) NULL');
+      })
+      .catch((err) => {
+        studentsTableReady = null;
+        throw err;
+      });
   }
   return studentsTableReady;
 }

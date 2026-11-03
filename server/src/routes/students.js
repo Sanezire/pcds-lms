@@ -138,6 +138,32 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid student.');
+
+    await ensureStudentsTable();
+    const rows = await query('SELECT student_id, full_name, course FROM students_data WHERE id = ?', [id]);
+    if (!rows[0]) throw httpError(404, 'Student not found.');
+
+    try {
+      await query('DELETE FROM students_data WHERE id = ?', [id]);
+    } catch (err) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
+        throw httpError(409, 'This student has kiosk attendance records, so the record cannot be deleted.');
+      }
+      throw err;
+    }
+
+    publish('attendance');
+    await recordAudit(req, 'student.delete', `Deleted student ${rows[0].full_name} (${rows[0].student_id}), ${rows[0].course}`);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // CSV import. The same call previews (commit: false) and saves (commit: true);
 // either way every row is checked the same way, and rows that fail are skipped
 // and reported with their line number rather than stopping the whole file.
@@ -160,7 +186,7 @@ router.post('/import', async (req, res, next) => {
       const field = Object.keys(HEADER_ALIASES).find((f) => HEADER_ALIASES[f].includes(norm(h)));
       if (field && columnOf[field] === undefined) columnOf[field] = i;
     });
-    const missing = Object.keys(HEADER_ALIASES).filter((f) => columnOf[f] === undefined);
+    const missing = Object.keys(HEADER_ALIASES).filter((f) => f !== 'rfidNumber' && columnOf[f] === undefined);
     if (missing.length) {
       const names = { rfidNumber: 'rfid_number', studentId: 'student_id', fullName: 'full_name', course: 'course', gender: 'gender', yearLevel: 'year_level' };
       throw httpError(400, `Missing column${missing.length > 1 ? 's' : ''}: ${missing.map((m) => names[m]).join(', ')}.`);
@@ -168,22 +194,22 @@ router.post('/import', async (req, res, next) => {
 
     await ensureStudentsTable();
     const existing = await query('SELECT rfid_number, student_id FROM students_data');
-    const takenRfid = new Set(existing.map((r) => r.rfid_number.toUpperCase()));
+    const takenRfid = new Set(existing.filter((r) => r.rfid_number).map((r) => r.rfid_number.toUpperCase()));
     const takenId = new Set(existing.map((r) => r.student_id));
 
     const good = [];
     const problems = [];
     for (const { line, cells } of table.slice(1)) {
-      const raw = Object.fromEntries(Object.entries(columnOf).map(([f, i]) => [f, cells[i] ?? '']));
+      const raw = Object.fromEntries(Object.keys(HEADER_ALIASES).map((f) => [f, columnOf[f] === undefined ? '' : cells[columnOf[f]] ?? '']));
       const { errors, values } = validateStudentRecord(raw);
-      if (!errors.rfidNumber && takenRfid.has(values.rfidNumber)) errors.rfidNumber = 'RFID number already in use.';
+      if (!errors.rfidNumber && values.rfidNumber && takenRfid.has(values.rfidNumber)) errors.rfidNumber = 'RFID number already in use.';
       if (!errors.studentId && takenId.has(values.studentId)) errors.studentId = 'Student ID already exists.';
       if (Object.keys(errors).length) {
         problems.push({ line, name: raw.fullName.trim(), errors: Object.values(errors) });
         continue;
       }
       // Later rows in the same file cannot reuse these either.
-      takenRfid.add(values.rfidNumber);
+      if (values.rfidNumber) takenRfid.add(values.rfidNumber);
       takenId.add(values.studentId);
       good.push({ line, values });
     }

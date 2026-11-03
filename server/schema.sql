@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 -- and student IDs look like 2025-1042-3 (YYYY-XXXX-X).
 CREATE TABLE IF NOT EXISTS students_data (
   id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  rfid_number VARCHAR(32)      NOT NULL,
+  rfid_number VARCHAR(32)      NULL,
   student_id  VARCHAR(11)      NOT NULL,
   full_name   VARCHAR(100)     NOT NULL,
   course      VARCHAR(100)     NOT NULL,

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Field } from './Field.jsx';
-import { showSuccessToast } from '../toast.js';
+import { showErrorToast, showSuccessToast } from '../toast.js';
 import Modal from './Modal.jsx';
 import IconButton from './IconButton.jsx';
+import { confirmDelete } from '../confirm.js';
 
 const COURSES = [
   'BS Nursing',
@@ -22,7 +23,8 @@ const YEARS = [1, 2, 3, 4];
 const EMPTY = { rfidNumber: '', studentId: '', fullName: '', course: '', gender: '', yearLevel: '' };
 const TEMPLATE =
   'rfid_number,student_id,full_name,course,gender,year_level\r\n' +
-  '3E5CCBF0,2025-1042-3,Maria Clara Santos,BS Information Technology,female,2\r\n';
+  '3E5CCBF0,2025-1042-3,Maria Clara Santos,BS Information Technology,female,2\r\n' +
+  ',2025-1043-1,Jose Andres Reyes,BS Nursing,male,1\r\n';
 const MAX_FILE_BYTES = 900 * 1024;
 const PAGE_SIZE = 25;
 const number = new Intl.NumberFormat();
@@ -51,7 +53,7 @@ function StudentFields({ values, errors, set }) {
   const listId = useId();
   return (
     <div className="student-form-grid">
-      <Field label="RFID number" name="rfidNumber" autoComplete="off" spellCheck="false" placeholder="e.g. 3E5CCBF0" value={values.rfidNumber} onChange={set('rfidNumber')} error={errors.rfidNumber} />
+      <Field label="RFID number (optional)" name="rfidNumber" autoComplete="off" spellCheck="false" placeholder="e.g. 3E5CCBF0" value={values.rfidNumber} onChange={set('rfidNumber')} error={errors.rfidNumber} />
       <Field label="Student ID" name="studentId" autoComplete="off" placeholder="2025-1042-3" value={values.studentId} onChange={set('studentId')} error={errors.studentId} />
       <Field label="Full name" name="fullName" autoComplete="off" value={values.fullName} onChange={set('fullName')} error={errors.fullName} />
       <Field label="Course" name="course" list={listId} autoComplete="off" placeholder="Choose from the list or type a course" value={values.course} onChange={set('course')} error={errors.course} />
@@ -130,7 +132,7 @@ function AddStudentForm({ onAdded }) {
 
 function EditStudentForm({ student, onSaved, onClose }) {
   const [values, setValues] = useState({
-    rfidNumber: student.rfidNumber,
+    rfidNumber: student.rfidNumber || '',
     studentId: student.studentId,
     fullName: student.fullName,
     course: student.course,
@@ -179,7 +181,7 @@ function EditStudentForm({ student, onSaved, onClose }) {
   );
 }
 
-function StudentDetails({ student, onEdit, onClose }) {
+function StudentDetails({ student, onEdit, onDelete, onClose }) {
   return (
     <>
       <dl className="details modal-details">
@@ -193,7 +195,7 @@ function StudentDetails({ student, onEdit, onClose }) {
         </div>
         <div>
           <dt>RFID number</dt>
-          <dd>{student.rfidNumber}</dd>
+          <dd>{student.rfidNumber || 'Not assigned'}</dd>
         </div>
         <div>
           <dt>Course</dt>
@@ -211,6 +213,9 @@ function StudentDetails({ student, onEdit, onClose }) {
       <div className="modal-actions">
         <button type="button" className="btn btn-quiet btn-lg" onClick={onClose}>
           Close
+        </button>
+        <button type="button" className="btn btn-quiet btn-danger btn-lg" onClick={onDelete}>
+          Delete
         </button>
         <button type="button" className="btn btn-primary btn-lg" onClick={onEdit}>
           Edit
@@ -283,9 +288,10 @@ function ImportCsv({ onImported }) {
   return (
     <div className="student-import">
       <p className="muted">
-        Upload a .csv file with the columns <code>rfid_number</code>, <code>student_id</code>, <code>full_name</code>,{' '}
-        <code>course</code>, <code>gender</code> and <code>year_level</code>. The file is checked first and nothing is
-        saved until you confirm.
+        Upload a .csv file with the columns <code>student_id</code>, <code>full_name</code>, <code>course</code>,{' '}
+        <code>gender</code> and <code>year_level</code>. The <code>rfid_number</code> column is optional: leave it out or
+        leave a cell blank and the student is saved without a card. The file is checked first and nothing is saved until
+        you confirm.
       </p>
       <div className="student-import-pick">
         <label className="btn btn-quiet file-btn">
@@ -336,7 +342,7 @@ function ImportCsv({ onImported }) {
                 <tbody>
                   {result.preview.map((r) => (
                     <tr key={r.studentId}>
-                      <td>{r.rfidNumber}</td>
+                      <td>{r.rfidNumber || <span className="muted">Not assigned</span>}</td>
                       <td>{r.studentId}</td>
                       <td>{r.fullName}</td>
                       <td>{r.course}</td>
@@ -421,6 +427,26 @@ function StudentList({ refreshKey }) {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
   const chosen = modal && data ? data.students.find((s) => s.id === modal.id) : null;
   const close = () => setModal(null);
+  async function remove(s) {
+    const ok = await confirmDelete({
+      title: 'Delete this student?',
+      text: `${s.fullName} (${s.studentId}) will be permanently removed from the student records.`,
+    });
+    if (!ok) return;
+    try {
+      await api(`/students/${s.id}`, { method: 'DELETE' });
+      close();
+      showSuccessToast('Student deleted', s.fullName);
+      load();
+    } catch (err) {
+      if (err.status === 404) {
+        close();
+        load();
+      } else {
+        showErrorToast('Could not delete', err.message);
+      }
+    }
+  }
   const saved = () => {
     close();
     showSuccessToast('Student updated');
@@ -485,12 +511,13 @@ function StudentList({ refreshKey }) {
                     </button>
                   </td>
                   <td>{s.studentId}</td>
-                  <td>{s.rfidNumber}</td>
+                  <td>{s.rfidNumber || <span className="muted">Not assigned</span>}</td>
                   <td>{s.course}</td>
                   <td>{genderLabel(s.gender)}</td>
                   <td>{s.yearLevel}</td>
                   <td className="student-actions">
                     <IconButton kind="edit" label={`Edit ${s.fullName}`} onClick={() => setModal({ type: 'edit', id: s.id })} />
+                    <IconButton kind="delete" label={`Delete ${s.fullName}`} onClick={() => remove(s)} />
                   </td>
                 </tr>
               ))}
@@ -515,7 +542,7 @@ function StudentList({ refreshKey }) {
       )}
       {chosen && modal.type === 'view' && (
         <Modal title="Student record" className="modal-wide" onClose={close}>
-          <StudentDetails student={chosen} onEdit={() => setModal({ type: 'edit', id: chosen.id })} onClose={close} />
+          <StudentDetails student={chosen} onEdit={() => setModal({ type: 'edit', id: chosen.id })} onDelete={() => remove(chosen)} onClose={close} />
         </Modal>
       )}
       {chosen && modal.type === 'edit' && (

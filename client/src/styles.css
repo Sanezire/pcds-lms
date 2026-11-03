@@ -2032,6 +2032,7 @@ a:hover {
 .student-name-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 .student-actions-col { width: 1%; }
 .student-actions { text-align: right; white-space: nowrap; }
+.student-actions .icon-btn + .icon-btn { margin-left: 6px; }
 @media (max-width: 560px) { .modal .student-form-grid { grid-template-columns: 1fr; } }
 .student-form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .student-import { display: grid; gap: 14px; }

@@ -171,7 +171,7 @@ export function validateStudentRecord(body = {}) {
   const yearLevel = /^[1-4]$/.test(yearText) ? Number(yearText) : null;
   const errors = {};
 
-  if (!RFID_RE.test(rfidNumber)) errors.rfidNumber = 'RFID number must be 4 to 32 hexadecimal characters (0-9, A-F).';
+  if (rfidNumber && !RFID_RE.test(rfidNumber)) errors.rfidNumber = 'RFID number must be 4 to 32 hexadecimal characters (0-9, A-F).';
   if (!STUDENT_NUMBER_RE.test(studentId)) errors.studentId = 'Student ID must look like 2025-1042-3.';
   if (fullName.length < 2 || fullName.length > 100) errors.fullName = 'Enter the full name (2 to 100 characters).';
   else if (!NAME_RE.test(fullName)) errors.fullName = 'Name can only contain letters, spaces, periods, apostrophes and hyphens.';
@@ -179,5 +179,5 @@ export function validateStudentRecord(body = {}) {
   if (!gender) errors.gender = 'Choose a gender.';
   if (yearLevel === null) errors.yearLevel = 'Year level must be 1 to 4.';
 
-  return { errors, values: { rfidNumber, studentId, fullName, course, gender, yearLevel } };
+  return { errors, values: { rfidNumber: rfidNumber || null, studentId, fullName, course, gender, yearLevel } };
 }
