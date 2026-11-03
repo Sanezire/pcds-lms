@@ -101,7 +101,7 @@ router.get('/attendance', async (req, res, next) => {
     const [counts, courses] = await Promise.all([
       query(`SELECT COUNT(*) AS total FROM (${WITH_DURATION}) r ${clause}`, params),
       query(
-        `SELECT course FROM manual_attendance UNION SELECT course FROM students_data ORDER BY course`
+        `SELECT course FROM attendance WHERE type = 'manual' UNION SELECT course FROM students_data ORDER BY course`
       ),
     ]);
 
@@ -528,17 +528,15 @@ async function resolveProgramRange(q, today) {
 
 // One row per student per day, with the program the student belongs to.
 const PROGRAM_VISITS_SQL = `
-  SELECT COALESCE(NULLIF(TRIM(sd.course), ''), NULLIF(TRIM(x.manual_course), '')) AS program,
-         COALESCE(sd.year_level, x.manual_year) AS year_level
+  SELECT NULLIF(TRIM(course), '') AS program, year_level
     FROM (
       SELECT student_id,
              DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d,
-             MAX(course) AS manual_course,
-             MAX(year_level) AS manual_year
+             MAX(course) AS course,
+             MAX(year_level) AS year_level
         FROM (${VISITS_SQL}) v
        GROUP BY student_id, d
     ) x
-    LEFT JOIN students_data sd ON sd.student_id = x.student_id
    WHERE x.d BETWEEN ? AND ?
 `;
 
@@ -562,7 +560,7 @@ export async function programYearData(q) {
       yearLevel ? [from, to, yearLevel] : [from, to]
     ),
     query(
-      'SELECT year_level FROM students_data UNION SELECT year_level FROM manual_attendance WHERE year_level IS NOT NULL ORDER BY year_level'
+      'SELECT year_level FROM students_data UNION SELECT year_level FROM attendance WHERE type = \'manual\' AND year_level IS NOT NULL ORDER BY year_level'
     ),
     query(`SELECT COUNT(*) AS n FROM (${PROGRAM_VISITS_SQL}) p WHERE program IS NULL`, [from, to]),
   ]);

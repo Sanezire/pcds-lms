@@ -12,7 +12,7 @@ const router = Router();
 // Same access as the kiosk screen: signed-in admins only.
 router.use(requireAuth, requireRole(...ATTENDANCE_ROLES));
 
-const COLUMNS = `id, student_id, student_name, course, year_level, gender, time_in, time_out`;
+const COLUMNS = `id, student_id, student_name, course, year_level, gender, recorded_at AS time_in, time_out`;
 
 const yearText = (n) => (n ? `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'} Year` : 'no year level');
 
@@ -46,8 +46,8 @@ router.get('/students', async (req, res, next) => {
     const like = `%${q.replace(/[|%_]/g, '|$&')}%`;
     const rows = await query(
       `SELECT s.student_id, s.full_name, s.course, s.year_level, s.gender,
-              EXISTS (SELECT 1 FROM manual_attendance m
-                       WHERE m.student_id = s.student_id AND m.time_out IS NULL) AS timed_in
+              EXISTS (SELECT 1 FROM attendance m
+                       WHERE m.type = 'manual' AND m.student_id = s.student_id AND m.time_out IS NULL) AS timed_in
          FROM students_data s
         WHERE s.full_name LIKE ? ESCAPE '|' OR s.student_id LIKE ? ESCAPE '|'
         ORDER BY s.full_name ASC
@@ -71,7 +71,7 @@ router.get('/students', async (req, res, next) => {
 
 const PAGE_SIZES = [10, 25, 50, 100];
 const OFFSET_MIN = Math.trunc(config.attendance.utcOffsetMinutes);
-const DAY_SQL = `DATE_FORMAT(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE), '%Y-%m-%d')`;
+const DAY_SQL = `DATE_FORMAT(DATE_ADD(recorded_at, INTERVAL ${OFFSET_MIN} MINUTE), '%Y-%m-%d')`;
 
 function listFilters(q) {
   const where = [];
@@ -118,13 +118,13 @@ router.get('/', async (req, res, next) => {
     const { clause, params } = listFilters(req.query);
     const { page: wanted, pageSize } = listPaging(req.query);
 
-    const counted = await query(`SELECT COUNT(*) AS total FROM manual_attendance ${clause}`, params);
+    const counted = await query(`SELECT COUNT(*) AS total FROM attendance ${clause ? `${clause} AND` : 'WHERE'} type = 'manual'`, params);
     const total = Number(counted[0].total);
     const totalPages = Math.max(Math.ceil(total / pageSize), 1);
     const page = Math.min(wanted, totalPages);
 
     const rows = await query(
-      `SELECT ${COLUMNS}, ${DAY_SQL} AS day FROM manual_attendance ${clause}
+      `SELECT ${COLUMNS}, ${DAY_SQL} AS day FROM attendance ${clause ? `${clause} AND` : 'WHERE'} type = 'manual'
         ORDER BY time_in DESC, id DESC
         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
       params
@@ -134,8 +134,8 @@ router.get('/', async (req, res, next) => {
     const dayCounts = {};
     if (days.length) {
       const perDay = await query(
-        `SELECT ${DAY_SQL} AS day, COUNT(*) AS entries FROM manual_attendance ${clause}
-          ${clause ? 'AND' : 'WHERE'} ${DAY_SQL} IN (${days.map(() => '?').join(',')})
+        `SELECT ${DAY_SQL} AS day, COUNT(*) AS entries FROM attendance ${clause ? `${clause} AND` : 'WHERE'} type = 'manual'
+          AND ${DAY_SQL} IN (${days.map(() => '?').join(',')})
           GROUP BY day`,
         [...params, ...days]
       );
@@ -170,9 +170,9 @@ router.post('/', async (req, res, next) => {
     let result;
     try {
       result = await query(
-        `INSERT INTO manual_attendance
-           (student_id, student_name, course, year_level, gender, time_in, recorded_by)
-         VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), ?)`,
+        `INSERT INTO attendance
+           (type, student_id, student_name, course, year_level, gender, recorded_at, recorded_by)
+         VALUES ('manual', ?, ?, ?, ?, ?, UTC_TIMESTAMP(), ?)`,
         [values.studentId, values.name, values.course, values.yearLevel, values.gender, req.user.id]
       );
     } catch (err) {
@@ -188,7 +188,7 @@ router.post('/', async (req, res, next) => {
 
     publish('attendance');
     await recordAudit(req, 'attendance.time_in', `Timed in ${values.name} (${values.studentId}), ${values.course}, ${yearText(values.yearLevel)}`);
-    const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [result.insertId]);
+    const rows = await query(`SELECT ${COLUMNS} FROM attendance WHERE id = ? AND type = 'manual'`, [result.insertId]);
     res.status(201).json({ record: toRecord(rows[0]) });
   } catch (err) {
     next(err);
@@ -203,11 +203,11 @@ router.post('/:id/time-out', async (req, res, next) => {
     if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid record.');
 
     const result = await query(
-      `UPDATE manual_attendance SET time_out = UTC_TIMESTAMP() WHERE id = ? AND time_out IS NULL`,
+      `UPDATE attendance SET time_out = UTC_TIMESTAMP() WHERE id = ? AND type = 'manual' AND time_out IS NULL`,
       [id]
     );
 
-    const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [id]);
+    const rows = await query(`SELECT ${COLUMNS} FROM attendance WHERE id = ? AND type = 'manual'`, [id]);
     if (!rows[0]) throw httpError(404, 'Record not found.');
     if (!result.affectedRows) throw httpError(409, 'This student was already timed out.');
     publish('attendance');
@@ -233,9 +233,9 @@ router.patch('/:id', async (req, res, next) => {
     let result;
     try {
       result = await query(
-        `UPDATE manual_attendance
+        `UPDATE attendance
             SET student_id = ?, student_name = ?, course = ?, year_level = ?, gender = ?
-          WHERE id = ?`,
+          WHERE id = ? AND type = 'manual'`,
         [values.studentId, values.name, values.course, values.yearLevel, values.gender, id]
       );
     } catch (err) {
@@ -248,7 +248,7 @@ router.patch('/:id', async (req, res, next) => {
       throw err;
     }
 
-    const rows = await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [id]);
+    const rows = await query(`SELECT ${COLUMNS} FROM attendance WHERE id = ? AND type = 'manual'`, [id]);
     if (!rows[0]) throw httpError(404, 'Record not found.');
     publish('attendance');
     await recordAudit(
@@ -268,8 +268,8 @@ router.delete('/:id', async (req, res, next) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid record.');
 
-    const before = (await query(`SELECT ${COLUMNS} FROM manual_attendance WHERE id = ?`, [id]))[0];
-    const result = await query(`DELETE FROM manual_attendance WHERE id = ?`, [id]);
+    const before = (await query(`SELECT ${COLUMNS} FROM attendance WHERE id = ? AND type = 'manual'`, [id]))[0];
+    const result = await query(`DELETE FROM attendance WHERE id = ? AND type = 'manual'`, [id]);
     if (!result.affectedRows) throw httpError(404, 'Record not found.');
     publish('attendance');
     await recordAudit(

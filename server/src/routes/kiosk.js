@@ -28,12 +28,7 @@ function startOfLocalDayUtc(nowMs) {
   return new Date(Math.floor((nowMs + offsetMs) / DAY_MS) * DAY_MS - offsetMs);
 }
 
-// Finds who a scanned value belongs to.
-//  1. An RFID number from students_data: that student. Students have no sign-in
-//     account, so their taps are stored against the student record itself.
-//  2. Otherwise a member ID of an account (for example the PCDS admin). A student
-//     who has a record cannot be scanned by typing their ID, only by their card,
-//     so one student never ends up with two separate attendance histories.
+// RFID attendance belongs to a registered student record.
 async function findSubject(scanned) {
   await ensureStudentsTable();
   const cards = await query('SELECT id, student_id FROM students_data WHERE rfid_number = ? LIMIT 1', [
@@ -41,14 +36,7 @@ async function findSubject(scanned) {
   ]);
   if (cards[0]) return { column: 'student_data_id', id: cards[0].id, label: cards[0].student_id };
 
-  const accounts = await query(
-    `SELECT u.id, u.member_id FROM users u
-      WHERE u.member_id = ? AND u.status = 'active'
-        AND NOT EXISTS (SELECT 1 FROM students_data s WHERE s.student_id = u.member_id)
-      LIMIT 1`,
-    [scanned]
-  );
-  return accounts[0] ? { column: 'user_id', id: accounts[0].id, label: accounts[0].member_id } : null;
+  return null;
 }
 
 // Records one card tap. The first tap of the day is Time In, the next is
@@ -65,7 +53,7 @@ router.post('/scan', kioskScanLimiter, async (req, res, next) => {
     const now = new Date();
     const lastRows = await query(
       `SELECT action, recorded_at FROM attendance
-        WHERE ${student.column} = ? AND recorded_at >= ?
+        WHERE type = 'rfid' AND student_data_id = ? AND recorded_at >= ?
         ORDER BY recorded_at DESC, id DESC
         LIMIT 1`,
       [student.id, startOfLocalDayUtc(now.getTime())]
@@ -88,7 +76,7 @@ router.post('/scan', kioskScanLimiter, async (req, res, next) => {
 
     const action = last && last.action === 'in' ? 'out' : 'in';
     await query(
-      `INSERT INTO attendance (${student.column}, action, recorded_at) VALUES (?, ?, ?)`,
+      `INSERT INTO attendance (type, student_data_id, action, recorded_at) VALUES ('rfid', ?, ?, ?)`,
       [student.id, action, now]
     );
     publish('attendance');

@@ -73,49 +73,54 @@ export async function ensureSchema() {
      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   );
 
-  // Student attendance is stored against the student record, so students no longer
-  // need an account in the users table. Older databases get the new column, and any
-  // attendance already recorded under an automatically created student account is
-  // moved over to the matching student record. Safe to run every time.
+  // Prepare the student table before migrating attendance.
   await ensureStudentsTable();
-  const hasColumn = await query(
-    `SELECT COLUMN_NAME FROM information_schema.columns
-      WHERE table_schema = DATABASE() AND table_name = 'attendance' AND column_name = 'student_data_id'`
-  );
-  if (!hasColumn.length) {
-    await query(
-      `ALTER TABLE attendance
-         MODIFY user_id BIGINT UNSIGNED NULL,
-         ADD COLUMN student_data_id BIGINT UNSIGNED NULL AFTER user_id,
-         ADD KEY idx_attendance_student_time (student_data_id, recorded_at),
-         ADD CONSTRAINT fk_attendance_student FOREIGN KEY (student_data_id) REFERENCES students_data (id) ON DELETE RESTRICT`
-    );
-    console.log('Attendance can now be stored against student records.');
+  const columns = async (table) => (await query(`SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`, [table])).map((r) => r.COLUMN_NAME);
+  const hasTable = async (table) => (await query('SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?', [table])).length > 0;
+  if (!(await hasTable('attendance'))) return;
+  let c = await columns('attendance');
+  const add = async (name, sql) => { if (!c.includes(name)) { await query(sql); c.push(name); } };
+  await add('type', "ALTER TABLE attendance ADD COLUMN type ENUM('rfid','manual') NOT NULL DEFAULT 'rfid'");
+  await add('student_data_id', 'ALTER TABLE attendance ADD COLUMN student_data_id BIGINT UNSIGNED NULL');
+  await add('student_id', 'ALTER TABLE attendance ADD COLUMN student_id VARCHAR(32) NULL');
+  await add('student_name', 'ALTER TABLE attendance ADD COLUMN student_name VARCHAR(100) NULL');
+  await add('course', 'ALTER TABLE attendance ADD COLUMN course VARCHAR(100) NULL');
+  await add('year_level', 'ALTER TABLE attendance ADD COLUMN year_level TINYINT UNSIGNED NULL');
+  await add('gender', "ALTER TABLE attendance ADD COLUMN gender ENUM('male','female','other') NULL");
+  await add('time_out', 'ALTER TABLE attendance ADD COLUMN time_out DATETIME NULL');
+  await add('recorded_by', 'ALTER TABLE attendance ADD COLUMN recorded_by BIGINT UNSIGNED NULL');
+  if (c.includes('user_id')) await query(`UPDATE attendance a JOIN users u ON u.id=a.user_id AND u.role='student' JOIN students_data s ON s.student_id=u.member_id SET a.student_data_id=s.id WHERE a.student_data_id IS NULL`);
+  if (await hasTable('manual_attendance')) {
+    const mc = await columns('manual_attendance');
+    if (!mc.includes('year_level')) await query('ALTER TABLE manual_attendance ADD COLUMN year_level TINYINT UNSIGNED NULL');
+    await query(`INSERT IGNORE INTO attendance (id,type,student_id,student_name,course,year_level,gender,action,recorded_at,time_out,recorded_by)
+      SELECT id,'manual',student_id,student_name,course,year_level,gender,'in',time_in,time_out,recorded_by FROM manual_attendance`);
+    // ID collisions with old RFID tap IDs get a fresh attendance ID. Match the
+    // copied payload on retries so the fallback insert is idempotent.
+    await query(`INSERT INTO attendance (type,student_id,student_name,course,year_level,gender,action,recorded_at,time_out,recorded_by)
+      SELECT 'manual',m.student_id,m.student_name,m.course,m.year_level,m.gender,'in',m.time_in,m.time_out,m.recorded_by
+        FROM manual_attendance m LEFT JOIN attendance a ON a.type='manual' AND a.student_id=m.student_id
+          AND a.student_name=m.student_name AND a.recorded_at=m.time_in AND a.time_out <=> m.time_out
+       WHERE a.id IS NULL`);
+    const [[{ n: oldCount }]] = await query('SELECT COUNT(*) AS n FROM manual_attendance');
+    const [[{ n: newCount }]] = await query("SELECT COUNT(*) AS n FROM attendance WHERE type='manual'");
+    if (Number(newCount) < Number(oldCount)) throw new Error('Manual attendance migration incomplete; source table retained for recovery.');
+    await query('DROP TABLE manual_attendance');
   }
-  const moved = await query(
-    `UPDATE attendance a
-       JOIN users u ON u.id = a.user_id AND u.role = 'student'
-       JOIN students_data s ON s.student_id = u.member_id
-        SET a.student_data_id = s.id, a.user_id = NULL`
-  );
-  if (moved.affectedRows) {
-    console.log(`Moved ${moved.affectedRows} attendance records from student accounts to student records.`);
+  for (const fk of ['fk_attendance_user','fk_attendance_kiosk']) {
+    const found = await query('SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name=\'attendance\' AND constraint_name=?', [fk]);
+    if (found.length) await query(`ALTER TABLE attendance DROP FOREIGN KEY ${fk}`);
   }
-
-  // Manual attendance entries record the student's year level too. Entries made
-  // before this existed take it from the matching student record when there is
-  // one; the rest stay blank until someone edits them.
-  const hasYear = await query(
-    `SELECT COLUMN_NAME FROM information_schema.columns
-      WHERE table_schema = DATABASE() AND table_name = 'manual_attendance' AND column_name = 'year_level'`
-  );
-  if (!hasYear.length) {
-    await query(`ALTER TABLE manual_attendance ADD COLUMN year_level TINYINT UNSIGNED NULL AFTER course`);
-    const filled = await query(
-      `UPDATE manual_attendance m JOIN students_data s ON s.student_id = m.student_id
-          SET m.year_level = s.year_level
-        WHERE m.year_level IS NULL`
-    );
-    console.log(`Manual attendance now has a year level (filled in ${filled.affectedRows} existing entries).`);
+  for (const idx of ['idx_attendance_user_time','idx_attendance_type_time','idx_attendance_student_time','idx_attendance_time','idx_attendance_manual_student_time']) {
+    const found = await query('SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=\'attendance\' AND index_name=?', [idx]);
+    if (!found.length && idx.startsWith('idx_attendance_')) continue;
+    if (['idx_attendance_user_time'].includes(idx) && found.length) await query(`ALTER TABLE attendance DROP INDEX ${idx}`);
   }
+  c = await columns('attendance');
+  if (c.includes('kiosk_user_id')) await query('ALTER TABLE attendance DROP COLUMN kiosk_user_id');
+  if (c.includes('user_id')) await query('ALTER TABLE attendance DROP COLUMN user_id');
+  const typeIndex = await query("SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='attendance' AND index_name='idx_attendance_type_time'");
+  if (!typeIndex.length) await query('CREATE INDEX idx_attendance_type_time ON attendance (type, recorded_at)');
+  const hasStudentFk = await query("SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='attendance' AND constraint_name='fk_attendance_student'");
+  if (!hasStudentFk.length) await query('ALTER TABLE attendance ADD CONSTRAINT fk_attendance_student FOREIGN KEY (student_data_id) REFERENCES students_data(id) ON DELETE RESTRICT');
 }

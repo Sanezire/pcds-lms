@@ -59,47 +59,30 @@ CREATE TABLE IF NOT EXISTS students_data (
   CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Library attendance taps, one row per Time In or Time Out. Staff taps point at a user account (user_id); student taps
--- point at the student record (student_data_id). Exactly one of the two is set.
+-- Unified student attendance. RFID visits use one row per tap; manual visits use
+-- one row with recorded_at as Time In and time_out as Time Out.
 CREATE TABLE IF NOT EXISTS attendance (
   id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id        BIGINT UNSIGNED NULL,
+  type           ENUM('rfid', 'manual') NOT NULL,
   student_data_id BIGINT UNSIGNED NULL,
+  student_id     VARCHAR(32) NULL,
+  student_name   VARCHAR(100) NULL,
+  course         VARCHAR(100) NULL,
+  year_level     TINYINT UNSIGNED NULL,
+  gender         ENUM('male', 'female', 'other') NULL,
   action         ENUM('in', 'out') NOT NULL,
   recorded_at    DATETIME        NOT NULL,
-  kiosk_user_id  BIGINT UNSIGNED NULL,
+  time_out       DATETIME        NULL,
+  recorded_by    BIGINT UNSIGNED NULL,
   PRIMARY KEY (id),
-  KEY idx_attendance_user_time (user_id, recorded_at),
+  KEY idx_attendance_type_time (type, recorded_at),
   KEY idx_attendance_student_time (student_data_id, recorded_at),
   KEY idx_attendance_time (recorded_at),
-  CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  KEY idx_attendance_manual_student_time (student_id, recorded_at),
+  UNIQUE KEY uq_attendance_active_manual (student_id, type, time_out),
   CONSTRAINT fk_attendance_student FOREIGN KEY (student_data_id) REFERENCES students_data (id) ON DELETE RESTRICT,
-  CONSTRAINT fk_attendance_kiosk FOREIGN KEY (kiosk_user_id) REFERENCES users (id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Manual attendance for students without an RFID card. One row per visit:
--- time_out stays NULL while the student is still in. active_student_id is
--- the student ID only while time_out is NULL, and its UNIQUE key means the
--- database itself refuses a second open entry for the same student.
-CREATE TABLE IF NOT EXISTS manual_attendance (
-  id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  student_id        VARCHAR(32)     NOT NULL,
-  student_name      VARCHAR(100)    NOT NULL,
-  course            VARCHAR(100)    NOT NULL,
-  year_level        TINYINT UNSIGNED NULL,
-  gender            ENUM('male', 'female', 'other') NOT NULL,
-  time_in           DATETIME        NOT NULL,
-  time_out          DATETIME        NULL,
-  recorded_by       BIGINT UNSIGNED NULL,
-  created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  active_student_id VARCHAR(32) GENERATED ALWAYS AS (IF(time_out IS NULL, student_id, NULL)) STORED,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_manual_attendance_active (active_student_id),
-  KEY idx_manual_attendance_time_in (time_in),
-  KEY idx_manual_attendance_student (student_id, time_in),
-  CONSTRAINT chk_manual_attendance_year CHECK (year_level IS NULL OR year_level BETWEEN 1 AND 6),
-  CONSTRAINT fk_manual_attendance_user FOREIGN KEY (recorded_by) REFERENCES users (id) ON DELETE SET NULL
+  CONSTRAINT fk_attendance_recorded_by FOREIGN KEY (recorded_by) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT chk_attendance_method CHECK ((type = 'rfid' AND student_data_id IS NOT NULL) OR (type = 'manual' AND student_id IS NOT NULL AND student_name IS NOT NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Custom messages shown on the kiosk when a specific student ID is scanned:

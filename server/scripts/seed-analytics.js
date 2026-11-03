@@ -133,7 +133,7 @@ async function removeOwnedFixture() {
   const [ownedRows] = await connection.execute('SELECT source_table, source_id FROM analytics_mock_rows WHERE seed_key = ?', [SEED]);
   for (const [table, ids] of [
     ['attendance', ownedRows.filter((row) => row.source_table === 'attendance').map((row) => row.source_id)],
-    ['manual_attendance', ownedRows.filter((row) => row.source_table === 'manual_attendance').map((row) => row.source_id)],
+    ['attendance', ownedRows.filter((row) => row.source_table === 'attendance').map((row) => row.source_id)],
   ]) {
     for (let i = 0; i < ids.length; i += 500) {
       const slice = ids.slice(i, i + 500);
@@ -179,7 +179,7 @@ try {
   ) ENGINE=InnoDB`);
   await connection.query(`CREATE TABLE IF NOT EXISTS analytics_mock_rows (
     seed_key VARCHAR(80) NOT NULL,
-    source_table ENUM('attendance', 'manual_attendance') NOT NULL,
+    source_table ENUM('attendance') NOT NULL,
     source_id BIGINT UNSIGNED NOT NULL,
     PRIMARY KEY (seed_key, source_table, source_id)
   ) ENGINE=InnoDB`);
@@ -222,7 +222,7 @@ try {
     const manualRows = attendance.manualVisits.map((visit) => [visit.studentId, visit.fullName, visit.course, visit.yearLevel, visit.gender, visit.timeIn, visit.timeOut]);
 
     const rfidCount = await insertTracked('attendance', ['student_data_id', 'action', 'recorded_at'], rfidRows);
-    const manualCount = await insertTracked('manual_attendance', ['student_id', 'student_name', 'course', 'year_level', 'gender', 'time_in', 'time_out'], manualRows);
+    const manualCount = await insertTracked('attendance', ['type', 'student_id', 'student_name', 'course', 'year_level', 'gender', 'action', 'recorded_at', 'time_out'], manualRows.map((r) => ['manual', r[0], r[1], r[2], r[3], r[4], 'in', r[5], r[6]]));
     await connection.commit();
     console.log(`Generated ${startDay} through ${localToday}: ${students.length} mock students, ${rfidCount / 2} RFID visits (${rfidCount} taps), ${manualCount} manual visits.`);
   }
