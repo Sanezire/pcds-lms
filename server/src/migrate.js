@@ -125,4 +125,13 @@ export async function ensureSchema() {
   if (!typeIndex.length) await query('CREATE INDEX idx_attendance_type_time ON attendance (type, recorded_at)');
   const hasStudentFk = await query("SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='attendance' AND constraint_name='fk_attendance_student'");
   if (!hasStudentFk.length) await query('ALTER TABLE attendance ADD CONSTRAINT fk_attendance_student FOREIGN KEY (student_data_id) REFERENCES students_data(id) ON DELETE RESTRICT');
+
+  // Manual entries made before the year level existed take it from the matching
+  // student record (same Student ID). Entries with no matching record stay blank.
+  const filled = await query(
+    `UPDATE attendance a JOIN students_data s ON s.student_id = a.student_id
+        SET a.year_level = s.year_level
+      WHERE a.type = 'manual' AND a.year_level IS NULL`
+  );
+  if (filled.affectedRows) console.log(`Filled in the year level of ${filled.affectedRows} manual attendance entries.`);
 }
