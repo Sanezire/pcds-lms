@@ -1,4 +1,6 @@
 import { query } from './db.js';
+import { closingTimeSql } from './attendance.js';
+import { config } from './config.js';
 
 const ROLE_COLUMN = `ENUM('admin', 'student', 'super_admin', 'student_assistant') NOT NULL DEFAULT 'student'`;
 
@@ -81,6 +83,7 @@ export async function ensureSchema() {
   const hasTable = async (table) => (await query('SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?', [table])).length > 0;
   if (!(await hasTable('attendance'))) return;
   let c = await columns('attendance');
+  if (c.includes('time_in')) return; // already one row per visit
   const add = async (name, sql) => { if (!c.includes(name)) { await query(sql); c.push(name); } };
   await add('type', "ALTER TABLE attendance ADD COLUMN type ENUM('rfid','manual') NOT NULL DEFAULT 'rfid'");
   await add('student_data_id', 'ALTER TABLE attendance ADD COLUMN student_data_id BIGINT UNSIGNED NULL');
@@ -134,4 +137,87 @@ export async function ensureSchema() {
       WHERE a.type = 'manual' AND a.year_level IS NULL`
   );
   if (filled.affectedRows) console.log(`Filled in the year level of ${filled.affectedRows} manual attendance entries.`);
+
+  await convertToVisits();
+}
+
+// Attendance used to be one row per kiosk tap (action 'in'/'out') plus manual rows
+// that kept their own copy of the student's details. It is now one row per visit
+// linked to students_data. The old rows are converted once, here:
+//   - each kiosk Time In is paired with the student's next tap; an 'out' tap closes it;
+//   - manual entries are linked to the student record with the same Student ID;
+//   - a visit left open on an earlier day is closed at that day's closing time, and
+//     if a student still has more than one open visit, all but the latest are closed
+//     when the next one starts.
+// Rows that belong to no student record (old staff-account taps, manual entries for
+// IDs that are not in the records) cannot be kept and are reported.
+async function convertToVisits() {
+  await query('DROP TABLE IF EXISTS attendance_visits');
+  await query(
+    `CREATE TABLE attendance_visits (
+       id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+       student_data_id BIGINT UNSIGNED NOT NULL,
+       type            ENUM('rfid', 'manual') NOT NULL,
+       time_in         DATETIME        NOT NULL,
+       time_out        DATETIME        NULL,
+       PRIMARY KEY (id),
+       KEY idx_attendance_time_in (time_in),
+       KEY idx_attendance_student_time_in (student_data_id, time_in),
+       KEY idx_attendance_type_time_in (type, time_in),
+       CONSTRAINT fk_attendance_student_data FOREIGN KEY (student_data_id) REFERENCES students_data (id) ON DELETE RESTRICT
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+
+  await query(
+    `INSERT INTO attendance_visits (student_data_id, type, time_in, time_out)
+     SELECT student_data_id, type, time_in, time_out FROM (
+       SELECT t.student_data_id, 'rfid' AS type, t.recorded_at AS time_in,
+              CASE WHEN t.next_action = 'out' THEN t.next_at END AS time_out, t.id AS old_id
+         FROM (SELECT id, student_data_id, action, recorded_at,
+                      LEAD(action) OVER (PARTITION BY student_data_id ORDER BY recorded_at, id) AS next_action,
+                      LEAD(recorded_at) OVER (PARTITION BY student_data_id ORDER BY recorded_at, id) AS next_at
+                 FROM attendance WHERE type = 'rfid' AND student_data_id IS NOT NULL) t
+        WHERE t.action = 'in'
+       UNION ALL
+       SELECT COALESCE(a.student_data_id, s.id), 'manual', a.recorded_at, a.time_out, a.id
+         FROM attendance a LEFT JOIN students_data s ON s.student_id = a.student_id
+        WHERE a.type = 'manual' AND COALESCE(a.student_data_id, s.id) IS NOT NULL
+     ) v
+     ORDER BY time_in, old_id`
+  );
+
+  const [lost] = await query(
+    `SELECT
+       (SELECT COUNT(*) FROM attendance WHERE type = 'rfid' AND action = 'in' AND student_data_id IS NULL) AS taps,
+       (SELECT COUNT(*) FROM attendance a LEFT JOIN students_data s ON s.student_id = a.student_id
+         WHERE a.type = 'manual' AND a.student_data_id IS NULL AND s.id IS NULL) AS manual`
+  );
+
+  // Close visits left open on an earlier day.
+  const offset = Math.trunc(config.attendance.utcOffsetMinutes);
+  const today = new Date(Date.now() + offset * 60000).toISOString().slice(0, 10);
+  await query(
+    `UPDATE attendance_visits SET time_out = ${closingTimeSql('time_in')}
+      WHERE time_out IS NULL
+        AND DATE(DATE_ADD(time_in, INTERVAL ${offset} MINUTE)) < ?`,
+    [today]
+  );
+  // One open visit per student: an older open one ends when the next one starts.
+  const open = await query('SELECT id, student_data_id, time_in FROM attendance_visits WHERE time_out IS NULL ORDER BY student_data_id, time_in, id');
+  for (let i = 0; i + 1 < open.length; i += 1) {
+    if (open[i].student_data_id === open[i + 1].student_data_id) {
+      await query('UPDATE attendance_visits SET time_out = ? WHERE id = ?', [open[i + 1].time_in, open[i].id]);
+    }
+  }
+
+  const [counts] = await query('SELECT COUNT(*) AS n FROM attendance_visits');
+  await query('RENAME TABLE attendance TO attendance_old_layout, attendance_visits TO attendance');
+  await query('DROP TABLE attendance_old_layout');
+  console.log(`Converted attendance to one row per visit: ${counts.n} visits.`);
+  const dropped = Number(lost.taps) + Number(lost.manual);
+  if (dropped) {
+    console.log(
+      `Left out ${dropped} old entries with no matching student record (${lost.taps} staff-account taps, ${lost.manual} manual entries).`
+    );
+  }
 }

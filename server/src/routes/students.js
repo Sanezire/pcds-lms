@@ -194,7 +194,7 @@ router.delete('/:id', async (req, res, next) => {
       await query('DELETE FROM students_data WHERE id = ?', [id]);
     } catch (err) {
       if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
-        throw httpError(409, 'This student has kiosk attendance records, so the record cannot be deleted.');
+        throw httpError(409, 'This student has attendance records, so the record cannot be deleted. Deactivate it instead.');
       }
       throw err;
     }

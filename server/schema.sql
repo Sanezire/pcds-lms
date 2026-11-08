@@ -60,30 +60,21 @@ CREATE TABLE IF NOT EXISTS students_data (
   CONSTRAINT chk_students_data_year CHECK (year_level BETWEEN 1 AND 6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Unified student attendance. RFID visits use one row per tap; manual visits use
--- one row with recorded_at as Time In and time_out as Time Out.
+-- Library attendance: one row per visit. type says how it was taken: 'rfid' (card
+-- tap on the kiosk) or 'manual' (entered by staff). Name, student ID, course, year
+-- level and gender come from the student's record in students_data. time_out stays
+-- NULL while the student is still in the library.
 CREATE TABLE IF NOT EXISTS attendance (
-  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  type           ENUM('rfid', 'manual') NOT NULL,
-  student_data_id BIGINT UNSIGNED NULL,
-  student_id     VARCHAR(32) NULL,
-  student_name   VARCHAR(100) NULL,
-  course         VARCHAR(100) NULL,
-  year_level     TINYINT UNSIGNED NULL,
-  gender         ENUM('male', 'female', 'other') NULL,
-  action         ENUM('in', 'out') NOT NULL,
-  recorded_at    DATETIME        NOT NULL,
-  time_out       DATETIME        NULL,
-  recorded_by    BIGINT UNSIGNED NULL,
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  student_data_id BIGINT UNSIGNED NOT NULL,
+  type            ENUM('rfid', 'manual') NOT NULL,
+  time_in         DATETIME        NOT NULL,
+  time_out        DATETIME        NULL,
   PRIMARY KEY (id),
-  KEY idx_attendance_type_time (type, recorded_at),
-  KEY idx_attendance_student_time (student_data_id, recorded_at),
-  KEY idx_attendance_time (recorded_at),
-  KEY idx_attendance_manual_student_time (student_id, recorded_at),
-  UNIQUE KEY uq_attendance_active_manual (student_id, type, time_out),
-  CONSTRAINT fk_attendance_student FOREIGN KEY (student_data_id) REFERENCES students_data (id) ON DELETE RESTRICT,
-  CONSTRAINT fk_attendance_recorded_by FOREIGN KEY (recorded_by) REFERENCES users (id) ON DELETE SET NULL,
-  CONSTRAINT chk_attendance_method CHECK ((type = 'rfid' AND student_data_id IS NOT NULL) OR (type = 'manual' AND student_id IS NOT NULL AND student_name IS NOT NULL))
+  KEY idx_attendance_time_in (time_in),
+  KEY idx_attendance_student_time_in (student_data_id, time_in),
+  KEY idx_attendance_type_time_in (type, time_in),
+  CONSTRAINT fk_attendance_student_data FOREIGN KEY (student_data_id) REFERENCES students_data (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Custom messages shown on the kiosk when a specific student ID is scanned:

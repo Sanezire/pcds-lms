@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { query } from '../db.js';
-import { config } from '../config.js';
+import { query, withTransaction } from '../db.js';
 import { httpError } from '../middleware/auth.js';
 import { requireKioskKey } from '../middleware/kioskKey.js';
 import { kioskScanLimiter } from '../middleware/rateLimit.js';
 import { publish } from '../events.js';
 import { readPinned } from './messages.js';
 import { ensureStudentsTable } from '../migrate.js';
+import { lockStudent, closeStaleVisits } from '../attendance.js';
 
 // Other routes import this from here.
 export { ensureStudentsTable };
@@ -15,18 +15,11 @@ const router = Router();
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
 const DUPLICATE_WINDOW_MS = 5000;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Everything the kiosk screen needs. The kiosk has no sign-in, so nothing here
 // reads or changes staff data: it only records taps and reads messages meant
 // for the screen. An optional KIOSK_KEY can lock these routes to one device.
 router.use(requireKioskKey);
-
-// Start of the current attendance day (local midnight) expressed in UTC.
-function startOfLocalDayUtc(nowMs) {
-  const offsetMs = config.attendance.utcOffsetMinutes * 60 * 1000;
-  return new Date(Math.floor((nowMs + offsetMs) / DAY_MS) * DAY_MS - offsetMs);
-}
 
 // RFID attendance belongs to a registered student record.
 async function findSubject(scanned) {
@@ -39,59 +32,66 @@ async function findSubject(scanned) {
   return null;
 }
 
-// Records one card tap. The first tap of the day is Time In, the next is
-// Time Out, and so on. Every failure returns the same generic message so the
-// screen never reveals whether an ID exists or what state an account is in.
+// Records one card tap. A tap starts a visit (Time In); the next tap closes it
+// (Time Out). A visit left open on an earlier day is closed at that day's closing
+// time first, so the first tap of a new day is always a Time In. Every failure
+// returns the same generic message so the screen never reveals whether an ID
+// exists or what state an account is in.
 router.post('/scan', kioskScanLimiter, async (req, res, next) => {
   try {
-    const studentId = typeof req.body?.studentId === 'string' ? req.body.studentId.trim() : '';
-    if (!ID_PATTERN.test(studentId)) throw httpError(400, 'Scan failed.');
+    const scanned = typeof req.body?.studentId === 'string' ? req.body.studentId.trim() : '';
+    if (!ID_PATTERN.test(scanned)) throw httpError(400, 'Scan failed.');
 
-    const student = await findSubject(studentId);
+    const student = await findSubject(scanned);
     if (!student) throw httpError(404, 'Scan failed.');
 
-    const now = new Date();
-    const lastRows = await query(
-      `SELECT action, recorded_at FROM attendance
-        WHERE type = 'rfid' AND student_data_id = ? AND recorded_at >= ?
-        ORDER BY recorded_at DESC, id DESC
-        LIMIT 1`,
-      [student.id, startOfLocalDayUtc(now.getTime())]
-    );
-    const last = lastRows[0];
+    const result = await withTransaction(async (tx) => {
+      // Taps for the same student are handled one at a time.
+      await lockStudent(tx, student.id);
+      const now = new Date();
+      await closeStaleVisits(tx, student.id, now.getTime());
+
+      const [last] = await tx.query(
+        `SELECT id, time_in, time_out FROM attendance
+          WHERE student_data_id = ?
+          ORDER BY time_in DESC, id DESC
+          LIMIT 1`,
+        [student.id]
+      );
+
+      // A card held on the reader can fire twice. Repeat the last result
+      // instead of flipping Time In to Time Out by accident.
+      if (last) {
+        const lastAt = new Date(last.time_out || last.time_in);
+        if (now.getTime() - lastAt.getTime() < DUPLICATE_WINDOW_MS) {
+          return { repeat: true, action: last.time_out ? 'out' : 'in', at: lastAt };
+        }
+      }
+
+      if (last && !last.time_out) {
+        await tx.query('UPDATE attendance SET time_out = ? WHERE id = ?', [now, last.id]);
+        return { action: 'out', at: now };
+      }
+      await tx.query("INSERT INTO attendance (student_data_id, type, time_in) VALUES (?, 'rfid', ?)", [student.id, now]);
+      return { action: 'in', at: now };
+    });
 
     res.set('Cache-Control', 'no-store');
-
-    // A card held on the reader can fire twice. Repeat the last result
-    // instead of flipping Time In to Time Out by accident.
-    if (last && now.getTime() - new Date(last.recorded_at).getTime() < DUPLICATE_WINDOW_MS) {
-      return res.json({
-        attendance: {
-          studentId: student.label,
-          action: last.action,
-          recordedAt: new Date(last.recorded_at).toISOString(),
-        },
-      });
-    }
-
-    const action = last && last.action === 'in' ? 'out' : 'in';
-    await query(
-      `INSERT INTO attendance (type, student_data_id, action, recorded_at) VALUES ('rfid', ?, ?, ?)`,
-      [student.id, action, now]
-    );
+    const attendance = { studentId: student.label, action: result.action, recordedAt: result.at.toISOString() };
+    if (result.repeat) return res.json({ attendance });
     publish('attendance');
 
-    // A custom message set for this ID (for example the PCDS admin) is shown
-    // by the kiosk before the result: the Time In message on Time In, the
-    // Time Out message on Time Out. Repeat taps above do not include it.
+    // A custom message set for this ID is shown by the kiosk before the result:
+    // the Time In message on Time In, the Time Out message on Time Out. Repeat
+    // taps above do not include it.
     const rules = await query(
       'SELECT message, message_out FROM message_rules WHERE student_id = ? AND enabled = 1 LIMIT 1',
       [String(student.label).toUpperCase()]
     );
 
     res.json({
-      attendance: { studentId: student.label, action, recordedAt: now.toISOString() },
-      message: (rules[0] && (action === 'in' ? rules[0].message : rules[0].message_out)) || null,
+      attendance,
+      message: (rules[0] && (result.action === 'in' ? rules[0].message : rules[0].message_out)) || null,
     });
   } catch (err) {
     next(err);

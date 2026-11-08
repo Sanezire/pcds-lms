@@ -103,7 +103,7 @@ router.get('/attendance', async (req, res, next) => {
     const [counts, courses] = await Promise.all([
       query(`SELECT COUNT(*) AS total FROM (${WITH_DURATION}) r ${clause}`, params),
       query(
-        `SELECT course FROM attendance WHERE type = 'manual' UNION SELECT course FROM students_data ORDER BY course`
+        `SELECT DISTINCT course FROM students_data ORDER BY course`
       ),
     ]);
 
@@ -167,8 +167,8 @@ const VISIT_DAYS_SQL = visitDays();
 
 // Years and first day that have any visit. Read straight from the table (no
 // pairing of taps needed), so these stay quick however much data there is.
-const LOCAL_START = `DATE(DATE_ADD(recorded_at, INTERVAL ${OFFSET_MIN} MINUTE))`;
-const VISIT_STARTS = `FROM attendance WHERE type = 'manual' OR action = 'in'`;
+const LOCAL_START = `DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE))`;
+const VISIT_STARTS = `FROM attendance`;
 
 const toDate = (s) => new Date(`${s}T00:00:00Z`);
 const fmt = (d) => d.toISOString().slice(0, 10);
@@ -496,10 +496,7 @@ router.get('/trends', async (req, res, next) => {
 
 // ---- Visits by academic program and year level ----
 // Every visit is one student on one school day (same rule as everywhere else).
-// The program and year level come from the student's record in students_data;
-// for a manual entry from a student without a record, the course and year level
-// typed in the entry are used (old entries without a year level show as not recorded). Visits by accounts with no
-// program at all (staff, for example) are not student visits and are left out.
+// The program and year level come from the student's record in students_data.
 
 async function resolveProgramRange(q, today) {
   const year = Number(today.slice(0, 4));
@@ -557,7 +554,7 @@ export async function programYearData(q) {
       [from, to]
     ),
     query(
-      'SELECT year_level FROM students_data UNION SELECT year_level FROM attendance WHERE type = \'manual\' AND year_level IS NOT NULL ORDER BY year_level'
+      'SELECT DISTINCT year_level FROM students_data ORDER BY year_level'
     ),
   ]);
 

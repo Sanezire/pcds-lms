@@ -215,17 +215,13 @@ try {
       await connection.execute('INSERT INTO analytics_mock_students (seed_key, student_data_id) VALUES (?, ?)', [SEED, result.insertId]);
     }
 
-    const rfidRows = attendance.rfidVisits.flatMap((visit) => [
-      [studentDataIds.get(visit.studentId), 'in', visit.timeIn],
-      [studentDataIds.get(visit.studentId), 'out', visit.timeOut || new Date(visit.timeIn.getTime() + 60 * MS_MINUTE)],
-    ]);
-    rfidRows.sort((a, b) => Number(a[0]) - Number(b[0]) || a[2] - b[2] || (a[1] === 'in' ? -1 : 1));
-    const manualRows = attendance.manualVisits.map((visit) => [visit.studentId, visit.fullName, visit.course, visit.yearLevel, visit.gender, visit.timeIn, visit.timeOut]);
-
-    const rfidCount = await insertTracked('attendance', ['student_data_id', 'action', 'recorded_at'], rfidRows);
-    const manualCount = await insertTracked('attendance', ['type', 'student_id', 'student_name', 'course', 'year_level', 'gender', 'action', 'recorded_at', 'time_out'], manualRows.map((r) => ['manual', r[0], r[1], r[2], r[3], r[4], 'in', r[5], r[6]]));
+    // One row per visit, linked to the student record.
+    const toRow = (type) => (visit) => [studentDataIds.get(visit.studentId), type, visit.timeIn, visit.timeOut];
+    const rows = [...attendance.rfidVisits.map(toRow('rfid')), ...attendance.manualVisits.map(toRow('manual'))]
+      .sort((x, y) => x[2] - y[2]);
+    await insertTracked('attendance', ['student_data_id', 'type', 'time_in', 'time_out'], rows);
     await connection.commit();
-    console.log(`Generated ${startDay} through ${localToday}: ${students.length} mock students, ${rfidCount / 2} RFID visits (${rfidCount} taps), ${manualCount} manual visits.`);
+    console.log(`Generated ${startDay} through ${localToday}: ${students.length} mock students, ${attendance.rfidVisits.length} RFID visits, ${attendance.manualVisits.length} manual visits.`);
   }
 } catch (error) {
   await connection.rollback().catch(() => {});

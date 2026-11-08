@@ -7,8 +7,8 @@ import mysql from 'mysql2/promise';
 // Mock data for testing:
 //   1. Adds the students in a CSV file (default: scripts/students_data.csv) to
 //      students_data. Students already there (same student ID or RFID) are left alone.
-//   2. Fills the attendance table with five years of mock visits (kiosk taps and
-//      manual entries) for those students, up to the current time.
+//   2. Fills the attendance table with five years of mock visits (kiosk and manual,
+//      one row per visit) for those students, up to the current time.
 //
 //   npm run seed:students                      uses scripts/students_data.csv
 //   npm run seed:students -- other.csv         uses another CSV
@@ -182,12 +182,11 @@ try {
   records.sort((a, b) => a.studentId.localeCompare(b.studentId)); // same order every run
 
   const dataIds = records.map((r) => r.dataId);
-  const ids = records.map((r) => r.studentId);
   let existing = 0;
   await inChunks(records, 500, async (part) => {
     const [[row]] = await connection.query(
-      `SELECT COUNT(*) AS n FROM attendance WHERE student_data_id IN (${part.map(() => '?').join(',')}) OR student_id IN (${part.map(() => '?').join(',')})`,
-      [...part.map((r) => r.dataId), ...part.map((r) => r.studentId)]
+      `SELECT COUNT(*) AS n FROM attendance WHERE student_data_id IN (${part.map(() => '?').join(',')})`,
+      part.map((r) => r.dataId)
     );
     existing += Number(row.n);
   });
@@ -198,40 +197,22 @@ try {
   } else {
     if (existing) {
       await inChunks(dataIds, 500, (part) => connection.query(`DELETE FROM attendance WHERE student_data_id IN (${part.map(() => '?').join(',')})`, part));
-      await inChunks(ids, 500, (part) => connection.query(`DELETE FROM attendance WHERE student_id IN (${part.map(() => '?').join(',')})`, part));
     }
 
     const visits = makeVisits(records);
-    // Kiosk taps are stored one row per tap (in, then out); manual visits are one row each.
-    const taps = [];
-    const manual = [];
-    for (const v of visits) {
-      if (v.type === 'rfid') {
-        taps.push(['rfid', v.student.dataId, 'in', v.timeIn]);
-        if (v.timeOut) taps.push(['rfid', v.student.dataId, 'out', v.timeOut]);
-      } else {
-        const s = v.student;
-        manual.push(['manual', s.studentId, s.fullName, s.course, s.yearLevel, s.gender, 'in', v.timeIn, v.timeOut]);
-      }
-    }
-    taps.sort((a, b) => a[3] - b[3]);
-    manual.sort((a, b) => a[7] - b[7]);
-
-    await inChunks(taps, 1000, (part) =>
-      connection.query(`INSERT INTO attendance (type, student_data_id, action, recorded_at) VALUES ${part.map(() => '(?,?,?,?)').join(',')}`, part.flat())
-    );
-    await inChunks(manual, 1000, (part) =>
-      connection.query(
-        `INSERT INTO attendance (type, student_id, student_name, course, year_level, gender, action, recorded_at, time_out) VALUES ${part.map(() => '(?,?,?,?,?,?,?,?,?)').join(',')}`,
-        part.flat()
-      )
+    // One row per visit, linked to the student record.
+    const rows = visits
+      .map((v) => [v.student.dataId, v.type, v.timeIn, v.timeOut])
+      .sort((a, b) => a[2] - b[2]);
+    await inChunks(rows, 1000, (part) =>
+      connection.query(`INSERT INTO attendance (student_data_id, type, time_in, time_out) VALUES ${part.map(() => '(?,?,?,?)').join(',')}`, part.flat())
     );
     await connection.commit();
 
     const rfidVisits = visits.filter((v) => v.type === 'rfid').length;
     console.log(
       `Students: ${added} added, ${students.length - added} already there. ` +
-        `Attendance: ${visits.length} visits over ${YEARS} years (${rfidVisits} kiosk, ${visits.length - rfidVisits} manual, ${taps.length} taps)` +
+        `Attendance: ${visits.length} visits over ${YEARS} years (${rfidVisits} kiosk, ${visits.length - rfidVisits} manual)` +
         (existing ? `, replacing ${existing} old rows.` : '.')
     );
   }
