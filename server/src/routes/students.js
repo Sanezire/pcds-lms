@@ -14,7 +14,18 @@ const router = Router();
 // Student records are managed by signed-in admins only.
 router.use(requireAuth, requireRole(...MANAGER_ROLES));
 
-const MAX_IMPORT_ROWS = 2000;
+// Long ID lists are sent to the database in batches, so even a whole school's
+// list stays well under the database's limit on values in one statement.
+const BATCH = 1000;
+async function inBatches(list, run) {
+  const out = [];
+  for (let i = 0; i < list.length; i += BATCH) {
+    const part = list.slice(i, i + BATCH);
+    const rows = await run(part, part.map(() => '?').join(','));
+    if (Array.isArray(rows)) out.push(...rows);
+  }
+  return out;
+}
 const PAGE_SIZE_MAX = 100;
 
 // Accepted CSV column names (compared lower-case, without spaces or underscores).
@@ -204,9 +215,6 @@ router.post('/import', async (req, res, next) => {
 
     const table = parseCsv(csv);
     if (table.length < 2) throw httpError(400, 'The file needs a header row and at least one student.');
-    if (table.length - 1 > MAX_IMPORT_ROWS) {
-      throw httpError(400, `Import up to ${MAX_IMPORT_ROWS} students at a time.`);
-    }
 
     // Map each column to a field by its header name.
     const norm = (h) => h.toLowerCase().replace(/[^a-z]/g, '');
@@ -334,10 +342,12 @@ router.post('/import', async (req, res, next) => {
 router.post('/deactivate', async (req, res, next) => {
   try {
     const ids = [...new Set((Array.isArray(req.body?.studentIds) ? req.body.studentIds : []).map(Number))];
-    if (!ids.length || ids.length > 2000 || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw httpError(400, 'Choose valid students to deactivate.');
-    const marks = ids.map(() => '?').join(',');
-    const rows = await query(`SELECT id, student_id, full_name FROM students_data WHERE id IN (${marks}) AND status='active'`, ids);
-    await query(`UPDATE students_data SET status='inactive' WHERE id IN (${marks}) AND status='active'`, ids);
+    if (!ids.length || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw httpError(400, 'Choose valid students to deactivate.');
+    const rows = await inBatches(ids, async (part, marks) => {
+      const found = await query(`SELECT id, student_id, full_name FROM students_data WHERE id IN (${marks}) AND status='active'`, part);
+      await query(`UPDATE students_data SET status='inactive' WHERE id IN (${marks}) AND status='active'`, part);
+      return found;
+    });
     for (const s of rows) await recordAudit(req, 'student.deactivate', `Deactivated student ${s.full_name} (${s.student_id})`);
     publish('attendance');
     res.json({ deactivated: rows.length, unmatched: ids.length - rows.length });
@@ -347,10 +357,12 @@ router.post('/deactivate', async (req, res, next) => {
 router.post('/reactivate', async (req, res, next) => {
   try {
     const ids = [...new Set((Array.isArray(req.body?.studentIds) ? req.body.studentIds : []).map(Number))];
-    if (!ids.length || ids.length > 2000 || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw httpError(400, 'Choose valid students to reactivate.');
-    const marks = ids.map(() => '?').join(',');
-    const rows = await query(`SELECT id,student_id,full_name FROM students_data WHERE id IN (${marks}) AND status='inactive'`, ids);
-    await query(`UPDATE students_data SET status='active' WHERE id IN (${marks}) AND status='inactive'`, ids);
+    if (!ids.length || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw httpError(400, 'Choose valid students to reactivate.');
+    const rows = await inBatches(ids, async (part, marks) => {
+      const found = await query(`SELECT id,student_id,full_name FROM students_data WHERE id IN (${marks}) AND status='inactive'`, part);
+      await query(`UPDATE students_data SET status='active' WHERE id IN (${marks}) AND status='inactive'`, part);
+      return found;
+    });
     for (const s of rows) await recordAudit(req, 'student.reactivate', `Reactivated student ${s.full_name} (${s.student_id})`);
     publish('attendance');
     res.json({ reactivated: rows.length, unmatched: ids.length - rows.length });
@@ -362,15 +374,15 @@ router.post('/deactivate/import', async (req, res, next) => {
     const csv = typeof req.body?.csv === 'string' ? req.body.csv : '';
     const commit = req.body?.commit === true;
     const table = parseCsv(csv);
-    if (table.length < 2 || table.length - 1 > MAX_IMPORT_ROWS) throw httpError(400, 'Provide a CSV with a header and up to 2,000 student rows.');
+    if (table.length < 2) throw httpError(400, 'Provide a CSV with a header and at least one student row.');
     const idCol = table[0].cells.findIndex((h) => ['studentid','studentnumber','studentno','id'].includes(h.toLowerCase().replace(/[^a-z]/g,'')));
     if (idCol < 0) throw httpError(400, 'CSV must include a student_id column.');
     const ids = [...new Set(table.slice(1).map((r) => (r.cells[idCol] || '').trim()).filter(Boolean))];
-    const matches = ids.length ? await query(`SELECT id,student_id,full_name,course,year_level FROM students_data WHERE status='active' AND student_id IN (${ids.map(()=>'?').join(',')})`, ids) : [];
+    const matches = await inBatches(ids, (part, marks) => query(`SELECT id,student_id,full_name,course,year_level FROM students_data WHERE status='active' AND student_id IN (${marks})`, part));
     const matched = new Map(matches.map((s) => [s.student_id,s]));
     const unmatched = ids.filter((id) => !matched.has(id));
     if (commit && matches.length) {
-      await query(`UPDATE students_data SET status='inactive' WHERE id IN (${matches.map(()=>'?').join(',')})`, matches.map((s)=>s.id));
+      await inBatches(matches.map((s) => s.id), (part, marks) => query(`UPDATE students_data SET status='inactive' WHERE id IN (${marks})`, part));
       for (const s of matches) await recordAudit(req,'student.deactivate',`Deactivated student ${s.full_name} (${s.student_id}) by CSV import`);
       publish('attendance');
     }

@@ -26,7 +26,7 @@ const TEMPLATE =
   'rfid_number,student_id,full_name,course,gender,year_level\r\n' +
   '3E5CCBF0,2025-1042-3,Maria Clara Santos,BS Information Technology,female,2\r\n' +
   ',2025-1043-1,Jose Andres Reyes,BS Nursing,male,1\r\n';
-const MAX_FILE_BYTES = 900 * 1024;
+const MAX_FILE_BYTES = 9 * 1024 * 1024;
 const PAGE_SIZE = 25;
 const number = new Intl.NumberFormat();
 const genderLabel = (v) => GENDERS.find((g) => g.value === v)?.label || v;
@@ -353,7 +353,7 @@ function ImportCsv({ onImported }) {
     }
     if (f.size > MAX_FILE_BYTES) {
       setFile(null);
-      return setError('That file is too large. Split it into smaller files (under 900 KB).');
+      return setError('That file is too large. Split it into smaller files (under 9 MB).');
     }
     const text = await f.text();
     setFile({ name: f.name, text });
@@ -733,6 +733,7 @@ export default function StudentRecords({ view = 'records' }) {
   const [deactivationError, setDeactivationError] = useState('');
   async function previewDeactivation(file) {
     if (!file) return;
+    if (file.size > MAX_FILE_BYTES) { setDeactivationPreview(null); setDeactivationError('That file is too large. Split it into smaller files (under 9 MB).'); return; }
     const csv = await file.text(); setDeactivationCsv(csv); setDeactivationError('');
     try { setDeactivationPreview(await api('/students/deactivate/import', { method: 'POST', body: { csv, commit: false } })); }
     catch (err) { setDeactivationPreview(null); setDeactivationError(err.message); }

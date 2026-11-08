@@ -33,9 +33,12 @@ app.use(
     allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Kiosk-Key'],
   })
 );
-// CSV imports are larger than any other request, so that one path gets a bigger
-// body limit (still rate limited); every other path keeps the small one.
-app.use('/api/students/import', apiLimiter, express.json({ limit: '1mb' }));
+// CSV imports and bulk (de)activation carry whole student lists, so those paths get
+// a bigger body limit (still rate limited); every other path keeps the small one.
+const bulkJson = express.json({ limit: '10mb' });
+app.use('/api/students/import', apiLimiter, bulkJson);
+app.use('/api/students/deactivate', apiLimiter, bulkJson);
+app.use('/api/students/reactivate', apiLimiter, bulkJson);
 // An export can carry a long list of chosen programs, so it gets a larger body limit.
 app.use('/api/reports', express.json({ limit: '64kb' }));
 app.use(express.json({ limit: '10kb' }));
