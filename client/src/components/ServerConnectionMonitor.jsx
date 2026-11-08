@@ -2,8 +2,13 @@ import { useEffect } from 'react';
 import { showErrorToast, showSuccessToast } from '../toast.js';
 
 const PERIOD_MS = 10_000;
-const TIMEOUT_MS = 3_000;
+// A failed check is confirmed a few seconds later before warning, so a quick
+// server restart or a check stuck behind other requests does not raise an alarm.
+const RECHECK_MS = 3_000;
+const TIMEOUT_MS = 5_000;
+const FAILURES_BEFORE_WARNING = 2;
 let connectionLost = false;
+let failures = 0;
 
 export default function ServerConnectionMonitor() {
   useEffect(() => {
@@ -37,14 +42,15 @@ export default function ServerConnectionMonitor() {
       }
       if (paused && !timedOut) return;
       if (stopped || document.visibilityState !== 'visible') return;
-      if (!healthy && !connectionLost) {
+      failures = healthy ? 0 : failures + 1;
+      if (failures >= FAILURES_BEFORE_WARNING && !connectionLost) {
         connectionLost = true;
         showErrorToast('Library server connection lost', 'Attendance and other server requests may not be available.');
       } else if (healthy && connectionLost) {
         connectionLost = false;
         showSuccessToast('Library server connection restored');
       }
-      schedule(PERIOD_MS);
+      schedule(healthy || connectionLost ? PERIOD_MS : RECHECK_MS);
     }
     const visibility = () => {
       if (document.visibilityState === 'visible') check();
