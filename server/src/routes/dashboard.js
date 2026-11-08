@@ -1,12 +1,14 @@
 import { Router } from 'express';
+import { cacheResponses } from '../responseCache.js';
 import { query } from '../db.js';
 import { config, ATTENDANCE_ROLES } from '../config.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { VISITS_SQL } from '../visits.js';
+import { visitsSql } from '../visits.js';
 
 const router = Router();
 
 router.use(requireAuth, requireRole(...ATTENDANCE_ROLES));
+router.use(cacheResponses());
 
 const OFFSET_MIN = Math.trunc(config.attendance.utcOffsetMinutes);
 const localDay = (col) => `DATE(DATE_ADD(${col}, INTERVAL ${OFFSET_MIN} MINUTE))`;
@@ -22,7 +24,7 @@ router.get('/summary', async (req, res, next) => {
               AVG(CASE WHEN time_out IS NOT NULL AND ${localDay('time_out')} = ?
                        THEN GREATEST(TIMESTAMPDIFF(SECOND, time_in, time_out), 0) END) AS avg_stay_seconds,
               COUNT(CASE WHEN attendance_type = 'manual' AND ${localDay('time_in')} = ? THEN 1 END) AS manual_today
-         FROM (${VISITS_SQL}) v`,
+         FROM (${visitsSql(today, today)}) v`,
       [today, today, today, today, today]
     );
     const r = rows[0];

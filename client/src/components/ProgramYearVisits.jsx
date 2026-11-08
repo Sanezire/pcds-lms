@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../api.js';
+import { api, cachedAnswer } from '../api.js';
 import { useLiveReload } from '../live.js';
 import ExportMenu from './ExportMenu.jsx';
 import { yearLabel } from '../yearLevels.js';
@@ -138,14 +138,21 @@ export default function ProgramYearVisits() {
     const id = ++latest.current;
     const silent = quiet.current;
     quiet.current = false;
-    if (!silent) setLoading(true);
     const qs = new URLSearchParams({ range: period });
     if (period === 'custom') {
       qs.set('from', from);
       qs.set('to', to);
     }
     if (year) qs.set('year', year);
-    api(`/statistics/program-year?${qs}`)
+    const path = `/statistics/program-year?${qs}`;
+    // Show the last answer for these filters at once; a fresh one replaces it quietly.
+    const kept = cachedAnswer(path);
+    if (kept) {
+      setData(kept);
+      setLoading(false);
+    }
+    else if (!silent) setLoading(true);
+    api(path)
       .then((r) => {
         if (id !== latest.current) return;
         setData(r);

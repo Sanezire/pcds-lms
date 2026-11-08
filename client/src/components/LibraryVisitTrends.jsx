@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../api.js';
+import { api, cachedAnswer } from '../api.js';
 import { useLiveReload } from '../live.js';
 import ExportMenu from './ExportMenu.jsx';
 
@@ -297,7 +297,6 @@ export default function LibraryVisitTrends() {
     const id = ++latest.current;
     const quiet = silent.current;
     silent.current = false;
-    if (!quiet) setLoading(true);
     const qs = new URLSearchParams({ report });
     if (report === 'daily' && month) qs.set('month', month);
     if (report === 'monthly' && year) qs.set('year', year);
@@ -306,7 +305,15 @@ export default function LibraryVisitTrends() {
       qs.set('from', from);
       qs.set('to', to);
     }
-    api(`/statistics/trends?${qs}`)
+    const path = `/statistics/trends?${qs}`;
+    // Show the last answer for these filters at once; a fresh one replaces it quietly.
+    const kept = cachedAnswer(path);
+    if (kept) {
+      setData(kept);
+      setLoading(false);
+    }
+    else if (!quiet) setLoading(true);
+    api(path)
       .then((r) => {
         if (id !== latest.current) return;
         setData(r);

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { ATTENDANCE_ROLES } from './config.js';
 import { requireAuth, requireRole, httpError } from './middleware/auth.js';
 import { requireKioskKey } from './middleware/kioskKey.js';
+import { clearResponseCache } from './responseCache.js';
 
 // Live updates. Signed-in staff screens keep one Server-Sent Events connection
 // open; whenever data changes, the server announces which topic changed and
@@ -12,6 +13,7 @@ const clients = new Set();
 const HEARTBEAT_MS = 25 * 1000;
 
 export function publish(topic) {
+  if (topic === 'attendance') clearResponseCache();
   const frame = `event: change\ndata: ${JSON.stringify({ topic, at: Date.now() })}\n\n`;
   for (const res of clients) res.write(frame);
 }

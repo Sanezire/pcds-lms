@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api } from '../api.js';
+import { api, cachedAnswer } from '../api.js';
 import { useLiveReload, useNow } from '../live.js';
 import Pagination from '../components/Pagination.jsx';
 import AnalyticsHub from '../components/AnalyticsHub.jsx';
@@ -94,17 +94,25 @@ function AttendanceLogs() {
   useEffect(() => {
     if (formError) return undefined;
 
+    const qs = new URLSearchParams(buildParams(filters));
+    qs.set('page', String(page));
+    qs.set('pageSize', String(pageSize));
+    const path = `/statistics/attendance?${qs}`;
+    // Show the last answer for these filters at once; a fresh one replaces it quietly.
+    const kept = cachedAnswer(path);
+    if (kept) {
+      setData(kept);
+      setLoading(false);
+    }
+
     const timer = setTimeout(async () => {
       const requestId = ++latestRequest.current;
       // Live refreshes swap the data in quietly; only filter changes show loading.
       const silent = silentRef.current;
       silentRef.current = false;
-      if (!silent) setLoading(true);
+      if (!silent && !kept) setLoading(true);
       try {
-        const qs = new URLSearchParams(buildParams(filters));
-        qs.set('page', String(page));
-        qs.set('pageSize', String(pageSize));
-        const result = await api(`/statistics/attendance?${qs}`);
+        const result = await api(path);
         if (requestId !== latestRequest.current) return;
         setData(result);
         // The server moves to the last page if this one no longer exists.

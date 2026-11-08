@@ -26,6 +26,14 @@ export const kioskKey = {
   },
 };
 
+// The last answer of each statistics/dashboard request, kept in memory for this
+// browser tab, so going back to a screen shows it at once while a fresh copy
+// loads quietly. Forgotten on sign-out or when the session ends.
+const CACHED = /^\/(statistics|dashboard)\//;
+const lastAnswers = new Map();
+export const cachedAnswer = (path) => lastAnswers.get(path);
+export const clearCachedAnswers = () => lastAnswers.clear();
+
 let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => {
   onUnauthorized = fn;
@@ -58,8 +66,16 @@ export async function api(path, { method = 'GET', body } = {}) {
   if (!res.ok) {
     const message = data?.error?.message || 'Something went wrong. Try again.';
     // A 401 on any call other than sign-in means the session ended.
-    if (res.status === 401 && !path.startsWith('/auth/login')) onUnauthorized();
+    if (res.status === 401 && !path.startsWith('/auth/login')) {
+      clearCachedAnswers();
+      onUnauthorized();
+    }
     throw new ApiError(message, res.status, data?.error?.fields);
+  }
+  if (method === 'GET' && CACHED.test(path)) {
+    lastAnswers.delete(path);
+    lastAnswers.set(path, data);
+    if (lastAnswers.size > 100) lastAnswers.delete(lastAnswers.keys().next().value);
   }
   return data;
 }

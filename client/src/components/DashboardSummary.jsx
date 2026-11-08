@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '../api.js';
+import { api, cachedAnswer } from '../api.js';
 import { useLiveReload } from '../live.js';
 import { formatMinutes } from '../durations.js';
 
@@ -9,7 +9,7 @@ const dateLocal = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: '
 const hourText = (h) => `${h % 12 || 12}:00 ${h % 24 < 12 ? 'AM' : 'PM'}`;
 
 export function useDashboardSummary() {
-  const [summary, setSummary] = useState(null);
+  const [summary, setSummary] = useState(() => cachedAnswer('/dashboard/summary') ?? null);
   const latest = useRef(0);
 
   const load = useCallback(async () => {

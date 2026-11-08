@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, setUnauthorizedHandler } from '../api.js';
+import { api, clearCachedAnswers, setUnauthorizedHandler } from '../api.js';
 
 const AuthContext = createContext(null);
 
@@ -39,6 +39,7 @@ export function AuthProvider({ children }) {
     try {
       await api('/auth/logout', { method: 'POST' });
     } finally {
+      clearCachedAnswers();
       setUser(null);
     }
   }, []);

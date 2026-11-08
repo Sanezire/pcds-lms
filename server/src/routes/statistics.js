@@ -1,14 +1,16 @@
 import { Router } from 'express';
+import { cacheResponses } from '../responseCache.js';
 import { query } from '../db.js';
 import { MANAGER_ROLES, config } from '../config.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { GENDERS } from '../validation.js';
-import { VISITS_SQL } from '../visits.js';
+import { VISITS_SQL, visitsSql } from '../visits.js';
 
 const router = Router();
 
 // Same access as the kiosk screen: signed-in admins only.
 router.use(requireAuth, requireRole(...MANAGER_ROLES));
+router.use(cacheResponses({ except: ['/attendance'] }));
 
 const PAGE_SIZES = [10, 25, 50, 100];
 const DEFAULT_PAGE_SIZE = 25;
@@ -155,11 +157,18 @@ const DAILY_BARS_UP_TO_DAYS = 62; // longer periods are shown one bar per month
 
 // One row per student per school day. The offset is a number from the server
 // configuration, never user input.
-const VISIT_DAYS_SQL = `
+// Pass the first and last day when only those days are needed (much faster).
+const visitDays = (from = null, to = null) => `
   SELECT student_id, DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d
-    FROM (${VISITS_SQL}) v
+    FROM (${visitsSql(from, to)}) v
    GROUP BY student_id, d
 `;
+const VISIT_DAYS_SQL = visitDays();
+
+// Years and first day that have any visit. Read straight from the table (no
+// pairing of taps needed), so these stay quick however much data there is.
+const LOCAL_START = `DATE(DATE_ADD(recorded_at, INTERVAL ${OFFSET_MIN} MINUTE))`;
+const VISIT_STARTS = `FROM attendance WHERE type = 'manual' OR action = 'in'`;
 
 const toDate = (s) => new Date(`${s}T00:00:00Z`);
 const fmt = (d) => d.toISOString().slice(0, 10);
@@ -216,7 +225,7 @@ export async function peakData(q) {
        FROM (
          SELECT student_id, d, MIN(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS arrived
            FROM (SELECT student_id, time_in, DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d
-                   FROM (${VISITS_SQL}) v) x
+                   FROM (${visitsSql(from, to)}) v) x
           WHERE d BETWEEN ? AND ?
           GROUP BY student_id, d
        ) y
@@ -297,8 +306,8 @@ export async function visitsData(q) {
   const span = daysBetween(from, to) + 1;
   const [rows, sums] = await Promise.all([
     span <= DAILY_BARS_UP_TO_DAYS
-      ? query(`SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d ORDER BY d`, [from, to])
-      : query(`SELECT DATE_FORMAT(d, '%Y-%m') AS month, COUNT(*) AS visits FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY month ORDER BY month`, [from, to]),
+      ? query(`SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits FROM (${visitDays(from, to)}) x WHERE d BETWEEN ? AND ? GROUP BY d ORDER BY d`, [from, to])
+      : query(`SELECT DATE_FORMAT(d, '%Y-%m') AS month, COUNT(*) AS visits FROM (${visitDays(from, to)}) x WHERE d BETWEEN ? AND ? GROUP BY month ORDER BY month`, [from, to]),
     query(
       `SELECT COUNT(*) AS total,
               COALESCE(SUM(d >= ?), 0) AS this_month,
@@ -372,7 +381,7 @@ const monthKeys = (year) => Array.from({ length: 12 }, (_, i) => `${year}-${Stri
 async function countByMonth(fromDay, toDay) {
   const rows = await query(
     `SELECT DATE_FORMAT(d, '%Y-%m') AS k, COUNT(*) AS visits
-       FROM (${VISIT_DAYS_SQL}) x
+       FROM (${visitDays(fromDay, toDay)}) x
       WHERE d BETWEEN ? AND ?
       GROUP BY k`,
     [fromDay, toDay]
@@ -388,7 +397,7 @@ export async function trendsData(q) {
   if (!report) throw httpError(400, 'Invalid report.');
 
   // Years that have visits, so the pickers only offer years worth choosing.
-  const yearRows = await query(`SELECT DISTINCT YEAR(d) AS y FROM (${VISIT_DAYS_SQL}) x ORDER BY y`);
+  const yearRows = await query(`SELECT DISTINCT YEAR(${LOCAL_START}) AS y ${VISIT_STARTS} ORDER BY y`);
   const years = [...new Set([...yearRows.map((r) => Number(r.y)), thisYear])].sort((a, b) => a - b);
 
   const out = { report, today, years };
@@ -399,7 +408,7 @@ export async function trendsData(q) {
     const last = fmt(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)));
     const rows = await query(
       `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
-         FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
+         FROM (${visitDays(first, last)}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
       [first, last]
     );
     const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
@@ -447,7 +456,7 @@ export async function trendsData(q) {
     if (span <= DAILY_BARS_UP_TO_DAYS) {
       const rows = await query(
         `SELECT DATE_FORMAT(d, '%Y-%m-%d') AS day, COUNT(*) AS visits
-           FROM (${VISIT_DAYS_SQL}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
+           FROM (${visitDays(from, to)}) x WHERE d BETWEEN ? AND ? GROUP BY d`,
         [from, to]
       );
       const perDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
@@ -496,7 +505,7 @@ async function resolveProgramRange(q, today) {
   const year = Number(today.slice(0, 4));
   switch (q.range ?? 'all') {
     case 'all': {
-      const rows = await query(`SELECT DATE_FORMAT(MIN(d), '%Y-%m-%d') AS first FROM (${VISIT_DAYS_SQL}) x`);
+      const rows = await query(`SELECT DATE_FORMAT(MIN(${LOCAL_START}), '%Y-%m-%d') AS first ${VISIT_STARTS}`);
       return { from: rows[0]?.first || today, to: today };
     }
     case 'lastYear':
@@ -514,14 +523,14 @@ async function resolveProgramRange(q, today) {
 }
 
 // One row per student per day, with the program the student belongs to.
-const PROGRAM_VISITS_SQL = `
+const programVisits = (from, to) => `
   SELECT NULLIF(TRIM(course), '') AS program, year_level
     FROM (
       SELECT student_id,
              DATE(DATE_ADD(time_in, INTERVAL ${OFFSET_MIN} MINUTE)) AS d,
              MAX(course) AS course,
              MAX(year_level) AS year_level
-        FROM (${VISITS_SQL}) v
+        FROM (${visitsSql(from, to)}) v
        GROUP BY student_id, d
     ) x
    WHERE x.d BETWEEN ? AND ?
@@ -537,26 +546,29 @@ export async function programYearData(q) {
     yearLevel = Number(q.year);
   }
 
-  const [rows, levels, left] = await Promise.all([
+  // One pass over the visits: every program and year level, including visits with
+  // no program (reported as left out, whatever year level is chosen).
+  const [all, levels] = await Promise.all([
     query(
       `SELECT program, year_level, COUNT(*) AS visits
-         FROM (${PROGRAM_VISITS_SQL}) p
-        WHERE program IS NOT NULL ${yearLevel ? 'AND year_level = ?' : ''}
+         FROM (${programVisits(from, to)}) p
         GROUP BY program, year_level
         ORDER BY program, year_level`,
-      yearLevel ? [from, to, yearLevel] : [from, to]
+      [from, to]
     ),
     query(
       'SELECT year_level FROM students_data UNION SELECT year_level FROM attendance WHERE type = \'manual\' AND year_level IS NOT NULL ORDER BY year_level'
     ),
-    query(`SELECT COUNT(*) AS n FROM (${PROGRAM_VISITS_SQL}) p WHERE program IS NULL`, [from, to]),
   ]);
 
-  const cells = rows.map((r) => ({
-    program: r.program,
-    yearLevel: r.year_level === null ? null : Number(r.year_level),
-    visits: Number(r.visits),
-  }));
+  const cells = all
+    .filter((r) => r.program !== null && (!yearLevel || Number(r.year_level) === yearLevel))
+    .map((r) => ({
+      program: r.program,
+      yearLevel: r.year_level === null ? null : Number(r.year_level),
+      visits: Number(r.visits),
+    }));
+  const leftOut = all.filter((r) => r.program === null).reduce((n, r) => n + Number(r.visits), 0);
 
   return {
     today,
@@ -565,7 +577,7 @@ export async function programYearData(q) {
     yearLevel,
     yearLevels: levels.map((l) => Number(l.year_level)),
     total: cells.reduce((n, c) => n + c.visits, 0),
-    leftOut: Number(left[0].n),
+    leftOut,
     rows: cells,
   };
 }
