@@ -63,8 +63,9 @@ export function useLiveReload(topics, reload, fallbackMs = 30000) {
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', trigger);
+    // Only needed while the live stream is down; when it is up, changes arrive through it.
     const poll = setInterval(() => {
-      if (document.visibilityState === 'visible') trigger();
+      if (document.visibilityState === 'visible' && source?.readyState !== EventSource.OPEN) trigger();
     }, fallbackMs);
 
     return () => {

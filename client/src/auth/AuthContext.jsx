@@ -15,12 +15,30 @@ export function AuthProvider({ children }) {
       return undefined;
     }
     let active = true;
-    api('/auth/me')
-      .then((data) => active && setUser(data.user))
-      .catch(() => active && setUser(null))
-      .finally(() => active && setLoading(false));
+    let retry;
+    // Only "not signed in" (401) means signed out. A busy server (429), a server
+    // error or a dropped connection is retried, so it never looks like a sign-out.
+    const check = (attempt) => {
+      api('/auth/me')
+        .then((data) => {
+          if (!active) return;
+          setUser(data.user);
+          setLoading(false);
+        })
+        .catch((err) => {
+          if (!active) return;
+          if (err.status === 401) {
+            setUser(null);
+            setLoading(false);
+          } else {
+            retry = setTimeout(() => check(attempt + 1), Math.min(2000 * (attempt + 1), 10000));
+          }
+        });
+    };
+    check(0);
     return () => {
       active = false;
+      clearTimeout(retry);
     };
   }, []);
 

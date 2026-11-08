@@ -5,10 +5,15 @@ const tooMany = (message) => (req, res) =>
 
 const base = { standardHeaders: true, legacyHeaders: false };
 
+// General ceiling per client IP, against floods. Staff screens refresh several
+// charts at once on every change, and several tabs (and the kiosk) on one computer
+// share an IP, so it is set well above what normal use needs. Sign-in, the kiosk
+// scan, registration and exports have their own, much tighter limits below.
+const perMinute = Number.parseInt(process.env.API_RATE_LIMIT_PER_MINUTE ?? '', 10);
 export const apiLimiter = rateLimit({
   ...base,
   windowMs: 60 * 1000,
-  limit: 120,
+  limit: Number.isInteger(perMinute) && perMinute > 0 ? perMinute : 600,
   handler: tooMany('Too many requests. Wait a moment and try again.'),
 });
 
