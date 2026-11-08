@@ -3,7 +3,6 @@ import { query } from '../db.js';
 import { ATTENDANCE_ROLES, config } from '../config.js';
 import { recordAudit } from '../audit.js';
 import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
-import { validateManualAttendance } from '../validation.js';
 import { publish } from '../events.js';
 import { ensureStudentsTable } from './kiosk.js';
 
@@ -63,6 +62,7 @@ router.get('/students', async (req, res, next) => {
         yearLevel: Number(r.year_level),
         gender: r.gender,
         timedIn: Boolean(r.timed_in),
+        inactive: Boolean(r.inactive),
       })),
     });
   } catch (err) {
@@ -160,34 +160,49 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Manual entries are only for students in the student records. The entry takes
+// its name, course, year level and gender from the record, never from the form.
+async function resolveStudent(body) {
+  const studentId = typeof body?.studentId === 'string' ? body.studentId.trim() : '';
+  if (!studentId || studentId.length > 32) {
+    throw httpError(400, 'Choose a student from the student records.', { studentId: 'Choose a student.' });
+  }
+  await ensureStudentsTable();
+  const rows = await query(
+    'SELECT student_id, full_name, course, year_level, gender, status FROM students_data WHERE student_id = ?',
+    [studentId]
+  );
+  const s = rows[0];
+  if (!s) {
+    throw httpError(400, 'This student is not in the student records.', { studentId: 'Not in the student records.' });
+  }
+  return {
+    status: s.status,
+    values: { studentId: s.student_id, name: s.full_name, course: s.course, yearLevel: Number(s.year_level), gender: s.gender },
+  };
+}
+
 // Time In is the server's clock at the moment of submission.
 router.post('/', async (req, res, next) => {
   try {
-    const { errors, values } = validateManualAttendance(req.body);
-    if (Object.keys(errors).length) {
-      throw httpError(400, 'Check the highlighted fields and try again.', errors);
-    }
+    const { status, values } = await resolveStudent(req.body);
+    if (status === 'inactive') throw httpError(409, 'This student is inactive and cannot be timed in.');
 
-    const active = await query("SELECT status FROM students_data WHERE student_id = ?", [values.studentId]);
-    if (active[0]?.status === 'inactive') throw httpError(409, 'This student is inactive and cannot be timed in.');
-
-    let result;
-    try {
-      result = await query(
-        `INSERT INTO attendance
-           (type, student_id, student_name, course, year_level, gender, recorded_at, recorded_by)
-         VALUES ('manual', ?, ?, ?, ?, ?, UTC_TIMESTAMP(), ?)`,
-        [values.studentId, values.name, values.course, values.yearLevel, values.gender, req.user.id]
-      );
-    } catch (err) {
-      // The unique key on active_student_id is what really enforces this, so
-      // two simultaneous submissions cannot both get through.
-      if (err.code === 'ER_DUP_ENTRY') {
-        throw httpError(409, 'This student is already timed in. Time them out first.', {
-          studentId: 'This student is already timed in.',
-        });
-      }
-      throw err;
+    // One statement inserts only when the student has no open manual entry, so two
+    // simultaneous submissions cannot both get through. (A unique key cannot do this:
+    // MySQL allows any number of rows whose time_out is NULL.)
+    const result = await query(
+      `INSERT INTO attendance
+         (type, student_id, student_name, course, year_level, gender, recorded_at, recorded_by)
+       SELECT 'manual', ?, ?, ?, ?, ?, UTC_TIMESTAMP(), ?
+        WHERE NOT EXISTS (SELECT 1 FROM attendance
+                           WHERE type = 'manual' AND student_id = ? AND time_out IS NULL)`,
+      [values.studentId, values.name, values.course, values.yearLevel, values.gender, req.user.id, values.studentId]
+    );
+    if (!result.affectedRows) {
+      throw httpError(409, 'This student is already timed in. Time them out first.', {
+        studentId: 'This student is already timed in.',
+      });
     }
 
     publish('attendance');
@@ -223,15 +238,25 @@ router.post('/:id/time-out', async (req, res, next) => {
   }
 });
 
-// Edit the student details on an entry. The times are never changed here.
+// Change which student an entry belongs to (or refresh its details from the
+// student's record). The times are never changed here.
 router.patch('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid record.');
 
-    const { errors, values } = validateManualAttendance(req.body);
-    if (Object.keys(errors).length) {
-      throw httpError(400, 'Check the highlighted fields and try again.', errors);
+    const { values } = await resolveStudent(req.body);
+
+    // Moving an open entry to a student who already has one open is not allowed.
+    const clash = await query(
+      `SELECT 1 FROM attendance o JOIN attendance e ON e.id = ? AND e.type = 'manual' AND e.time_out IS NULL
+        WHERE o.type = 'manual' AND o.student_id = ? AND o.time_out IS NULL AND o.id <> e.id LIMIT 1`,
+      [id, values.studentId]
+    );
+    if (clash.length) {
+      throw httpError(409, 'This student is already timed in. Time them out first.', {
+        studentId: 'This student is already timed in.',
+      });
     }
 
     let result;
