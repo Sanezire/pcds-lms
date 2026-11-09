@@ -195,6 +195,12 @@ function requireLibraryOpen() {
   }
 }
 
+// Whether the library is open now, so the screen can say so before opening the form.
+router.get('/library-status', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(libraryStatus());
+});
+
 const alreadyIn = () =>
   httpError(409, 'This student is already timed in. Time them out first.', {
     studentId: 'This student is already timed in.',

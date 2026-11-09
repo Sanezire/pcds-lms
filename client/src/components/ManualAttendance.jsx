@@ -7,7 +7,7 @@ import Modal from './Modal.jsx';
 import Pagination from './Pagination.jsx';
 import { formatMinutes } from '../durations.js';
 import { confirmDelete } from '../confirm.js';
-import { showSuccessToast } from '../toast.js';
+import { showErrorToast, showSuccessToast } from '../toast.js';
 import { yearLabel } from '../yearLevels.js';
 
 const GENDERS = [
@@ -522,6 +522,22 @@ export default function ManualAttendance() {
     topRef.current?.scrollIntoView({ block: 'start' });
   }
 
+  // Outside library hours the form would be refused anyway, so say so up front
+  // instead of opening it. If the check itself fails, the form opens and the
+  // server still decides.
+  async function openNewEntry() {
+    try {
+      const status = await api('/manual-attendance/library-status');
+      if (!status.open) {
+        showErrorToast('The library is closed', `Attendance can only be recorded during library hours: ${status.hours}.`);
+        return;
+      }
+    } catch {
+      /* open the form; the server checks the hours again */
+    }
+    setModal({ type: 'new' });
+  }
+
   return (
     <section className="panel" aria-labelledby="manual-h">
       <div className="panel-head" ref={topRef}>
@@ -532,7 +548,7 @@ export default function ManualAttendance() {
           </h2>
           <p className="muted">For students without an RFID card.</p>
         </div>
-        <button type="button" className="btn btn-primary btn-lg" onClick={() => setModal({ type: 'new' })}>
+        <button type="button" className="btn btn-primary btn-lg" onClick={openNewEntry}>
           <img className="btn-icon" src="/images/add_student_icon.png" alt="" />
           Add student
         </button>
