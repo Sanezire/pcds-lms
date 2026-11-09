@@ -2660,20 +2660,18 @@ select.field-select[name="role"] { width: 100%; }
   z-index: 40;
 }
 .sidebar-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 2px 0 6px;
+  position: relative;
+  min-height: 50px;
 }
 .sidebar-brand {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   min-width: 0;
-  min-height: 44px;
-  padding: 4px 8px 4px 4px;
+  min-height: 50px;
+  padding: 0 12px;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
@@ -2686,6 +2684,21 @@ select.field-select[name="role"] { width: 100%; }
 .sidebar-brand:hover { background: var(--hover); }
 .sidebar-brand:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .sidebar-brand svg, .sidebar-brand img { flex: none; }
+.sidebar-brand > .sidebar-label { transition: opacity 0.15s ease; }
+/* The logo sits at the right edge while the sidebar is open and in the middle
+   while it is collapsed; the move is animated together with the width. */
+.sidebar-brand-logo {
+  position: absolute;
+  top: 50%;
+  left: 5px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  transform: translate(calc(var(--sidebar-w) - 24px - 52px), -50%);
+  transition: transform 0.2s ease;
+}
+.mobile-bar .sidebar-brand { width: auto; padding: 0 8px; }
 .sidebar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-toggle {
   flex: none;
@@ -2702,7 +2715,6 @@ select.field-select[name="role"] { width: 100%; }
 .sidebar-toggle:hover { background: var(--hover); color: var(--ink); }
 .sidebar-toggle:focus-visible,
 .sidebar-nav a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.sidebar-close { display: none; }
 
 .sidebar-nav {
   flex: 1;
@@ -2776,8 +2788,8 @@ select.field-select[name="role"] { width: 100%; }
 /* Collapsed: icons only, labels hidden (each item keeps a tooltip and an accessible name). */
 .shell-sidebar.is-collapsed .sidebar-label,
 .shell-sidebar.is-collapsed .sidebar-external { display: none; }
-.shell-sidebar.is-collapsed .sidebar-head { justify-content: center; padding: 0; }
-.shell-sidebar.is-collapsed .sidebar-brand { padding: 4px; }
+.shell-sidebar.is-collapsed .sidebar-brand-logo { transform: translate(0, -50%); }
+.shell-sidebar.is-collapsed .sidebar-brand > .sidebar-label { display: inline; opacity: 0; }
 .shell-sidebar.is-collapsed .sidebar-nav a { justify-content: center; padding: 0; }
 .shell-sidebar.is-collapsed .sidebar-user { justify-content: center; padding: 0; }
 .shell-sidebar.is-collapsed .sidebar-action { justify-content: center; padding: 0; }
@@ -2789,11 +2801,10 @@ select.field-select[name="role"] { width: 100%; }
 /* Small screens: the sidebar becomes a drawer opened from a top bar. */
 @media (max-width: 900px) {
   .shell-sidebar,
-  .shell-sidebar.is-collapsed { --sidebar-w: 280px; }
+  .shell-sidebar.is-collapsed { --sidebar-w: min(280px, 86vw); }
   .sidebar {
     position: fixed;
     inset: 0 auto 0 0;
-    max-width: 86vw;
     transform: translateX(-100%);
     transition: transform 0.2s ease, visibility 0.2s;
     visibility: hidden;
@@ -2806,13 +2817,12 @@ select.field-select[name="role"] { width: 100%; }
     background: rgba(0, 0, 0, 0.35);
     z-index: 30;
   }
-  .sidebar-close { display: inline-grid; }
   /* Always the full sidebar inside the drawer. */
   .shell-sidebar.is-collapsed .sidebar-label { display: inline; }
   .shell-sidebar.is-collapsed .sidebar-user-text { display: grid; }
   .shell-sidebar.is-collapsed .sidebar-external { display: inline; }
-  .shell-sidebar.is-collapsed .sidebar-head { justify-content: space-between; padding: 0 2px 0 6px; }
-  .shell-sidebar.is-collapsed .sidebar-brand { padding: 4px 8px 4px 4px; }
+  .shell-sidebar.is-collapsed .sidebar-brand-logo { transform: translate(calc(var(--sidebar-w) - 24px - 52px), -50%); }
+  .shell-sidebar.is-collapsed .sidebar-brand > .sidebar-label { opacity: 1; }
   .shell-sidebar.is-collapsed .sidebar-nav a { justify-content: flex-start; padding: 0 14px; }
   .shell-sidebar.is-collapsed .sidebar-user { justify-content: flex-start; padding: 0 4px; }
   .shell-sidebar.is-collapsed .sidebar-action { justify-content: flex-start; padding: 0 14px; }
@@ -2829,5 +2839,5 @@ select.field-select[name="role"] { width: 100%; }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sidebar { transition: none; }
+  .sidebar, .sidebar-brand-logo, .sidebar-brand > .sidebar-label { transition: none; }
 }

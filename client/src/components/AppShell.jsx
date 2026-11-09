@@ -8,7 +8,6 @@ import { MANAGER_ROLES, roleLabel } from '../auth/roles.js';
 import {
   AuditIcon,
   ChartIcon,
-  CloseIcon,
   DashboardIcon,
   ExternalIcon,
   KioskIcon,
@@ -77,7 +76,7 @@ function SidebarShell({ user, onLogout }) {
     <div className={`shell shell-sidebar${collapsed ? ' is-collapsed' : ''}${drawerOpen ? ' is-drawer-open' : ''}`}>
       <aside className="sidebar" id="app-sidebar">
         <div className="sidebar-head">
-          {/* The school logo opens and closes the sidebar (on small screens it closes the menu). */}
+          {/* The school logo (the whole header) opens and closes the sidebar; on small screens it closes the menu. */}
           <button
             type="button"
             className="sidebar-brand"
@@ -87,11 +86,11 @@ function SidebarShell({ user, onLogout }) {
             aria-label={drawerOpen ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={drawerOpen ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            <BrandMark size={34} />
             <span className="sidebar-label">PCDS LRC</span>
-          </button>
-          <button type="button" className="sidebar-toggle sidebar-close" onClick={() => setDrawerOpen(false)} aria-label="Close menu">
-            <CloseIcon />
+            {/* Slides to the right edge when the sidebar opens, back to the middle when it closes. */}
+            <span className="sidebar-brand-logo" aria-hidden="true">
+              <BrandMark size={34} />
+            </span>
           </button>
         </div>
 
