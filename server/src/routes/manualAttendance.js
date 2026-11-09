@@ -6,6 +6,7 @@ import { requireAuth, requireRole, httpError } from '../middleware/auth.js';
 import { publish } from '../events.js';
 import { ensureStudentsTable } from './kiosk.js';
 import { lockStudent, closeStaleVisits, findOpenVisit, startOfLocalDay } from '../attendance.js';
+import { libraryStatus } from '../libraryHours.js';
 
 const router = Router();
 
@@ -183,6 +184,17 @@ async function resolveStudent(body) {
   return s;
 }
 
+// Like the kiosk, Time In and Time Out are only recorded while the library is open
+// (Settings > Library hours). Editing or deleting an entry is still allowed.
+function requireLibraryOpen() {
+  const status = libraryStatus();
+  if (!status.open) {
+    throw httpError(403, `The library is closed. Attendance can only be recorded during library hours: ${status.hours}.`, {
+      libraryClosed: status.hours,
+    });
+  }
+}
+
 const alreadyIn = () =>
   httpError(409, 'This student is already timed in. Time them out first.', {
     studentId: 'This student is already timed in.',
@@ -198,6 +210,7 @@ async function readEntry(id) {
 // Time In is the server's clock at the moment of submission.
 router.post('/', async (req, res, next) => {
   try {
+    requireLibraryOpen();
     const student = await resolveStudent(req.body);
     if (student.status === 'inactive') throw httpError(409, 'This student is inactive and cannot be timed in.');
 
@@ -227,6 +240,7 @@ router.post('/:id/time-out', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) throw httpError(400, 'Invalid record.');
+    requireLibraryOpen();
 
     const result = await query(
       `UPDATE attendance SET time_out = UTC_TIMESTAMP() WHERE id = ? AND type = 'manual' AND time_out IS NULL`,

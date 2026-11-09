@@ -68,9 +68,10 @@ function LibraryHours() {
   return (
     <form onSubmit={save} noValidate>
       <p className="muted">
-        The kiosk only accepts card taps while the library is open. Outside these hours a tap shows that the library
-        is closed. A student still timed in at closing time is timed out automatically at the closing time. The hours
-        are also used by the dashboard and the peak usage chart.
+        Attendance is only recorded while the library is open: outside these hours the kiosk refuses card taps and
+        Manual Attendance refuses Time In and Time Out (entries can still be edited or deleted). A student still
+        timed in at closing time is timed out automatically at the closing time. The hours are also used by the
+        dashboard and the peak usage chart.
       </p>
       <p className="settings-status">
         <span className={`status ${saved.status.open ? 'status-in' : 'status-out'}`}>{saved.status.open ? 'Open now' : 'Closed now'}</span>
