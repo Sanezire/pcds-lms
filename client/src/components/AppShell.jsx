@@ -26,7 +26,7 @@ const SIDEBAR_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/statistics', label: 'Statistics', Icon: ChartIcon },
   { to: '/students', label: 'Students', Icon: StudentsIcon },
-  { to: '/accounts', label: 'Account Management', Icon: AccountsIcon },
+  { to: '/accounts', label: 'Accounts', Icon: AccountsIcon },
   { to: '/audit-logs', label: 'Audit Logs', Icon: AuditIcon },
   { to: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];
