@@ -6,6 +6,7 @@ import ThemeToggle from './ThemeToggle.jsx';
 import { useTheme } from '../theme/ThemeContext.jsx';
 import { MANAGER_ROLES, roleLabel } from '../auth/roles.js';
 import {
+  AccountsIcon,
   AuditIcon,
   ChartIcon,
   DashboardIcon,
@@ -25,6 +26,7 @@ const SIDEBAR_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/statistics', label: 'Statistics', Icon: ChartIcon },
   { to: '/students', label: 'Students', Icon: StudentsIcon },
+  { to: '/accounts', label: 'Account Management', Icon: AccountsIcon },
   { to: '/audit-logs', label: 'Audit Logs', Icon: AuditIcon },
   { to: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];

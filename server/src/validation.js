@@ -66,6 +66,18 @@ export function validateRegistration(body = {}, { autoId = false } = {}) {
   return { errors, values: { fullName, email, memberId, password, registrationKey, role } };
 }
 
+// An account created by the super admin: like registration, without the
+// registration key (the super admin's sign-in is the permission).
+export function validateNewAccount(body = {}) {
+  const { errors, values } = validateRegistration({ ...body, registrationKey: 'not-used' }, { autoId: true });
+  delete errors.registrationKey;
+  // Worded for someone filling in another person's details.
+  for (const key of ['fullName', 'email', 'confirmPassword']) {
+    if (errors[key]) errors[key] = errors[key].replace('Enter your ', 'Enter the ').replace('Confirm your ', 'Confirm the ');
+  }
+  return { errors, values: { fullName: values.fullName, email: values.email, password: values.password, role: values.role } };
+}
+
 export function checkPassword(password) {
   if (!password) return 'Enter a password.';
   if (password.length < 8) return 'Password must be at least 8 characters.';

@@ -165,3 +165,12 @@ export const CloseIcon = (props) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 );
+
+export const AccountsIcon = (props) => (
+  <svg {...base} {...props}>
+    <circle cx="10" cy="8" r="3.5" />
+    <path d="M3.5 20c.6-3.5 3.2-5.5 6.5-5.5 1.3 0 2.5.3 3.5.9" />
+    <circle cx="17.5" cy="17.5" r="2.2" />
+    <path d="M17.5 13.6v1.7M17.5 19.7v1.7M21.4 17.5h-1.7M15.3 17.5h-1.7M20.3 14.7l-1.2 1.2M15.9 19.1l-1.2 1.2M20.3 20.3l-1.2-1.2M15.9 15.9l-1.2-1.2" />
+  </svg>
+);

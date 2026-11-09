@@ -16,6 +16,7 @@ import auditLogRoutes from './routes/auditLogs.js';
 import { ensureSchema } from './migrate.js';
 import { loadLibraryHours } from './libraryHours.js';
 import settingsRoutes from './routes/settings.js';
+import accountRoutes from './routes/accounts.js';
 import statisticsRoutes from './routes/statistics.js';
 import reportRoutes from './routes/reports.js';
 import messageRoutes from './routes/messages.js';
@@ -65,6 +66,7 @@ app.use('/api/statistics', statisticsRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/accounts', accountRoutes);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: { message: 'Not found.' } });

@@ -30,6 +30,13 @@ export function validateRegister(v) {
   return e;
 }
 
+// An account the super admin creates for someone else (no registration key).
+export function validateNewAccount(v) {
+  const e = validateRegister({ ...v, registrationKey: 'not-used' });
+  for (const key of ['fullName', 'email', 'confirmPassword']) if (e[key]) e[key] = e[key].replace('Enter your ', 'Enter the ').replace('Confirm your ', 'Confirm the ');
+  return e;
+}
+
 export function validateLogin(v) {
   const e = {};
   if (!v.identifier.trim()) e.identifier = 'Enter your email or ID.';

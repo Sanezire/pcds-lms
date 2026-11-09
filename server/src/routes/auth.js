@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { recordAudit } from '../audit.js';
+import { createStaffAccount, ROLE_LABEL } from '../accounts.js';
 import {
   validateRegistration,
   validateLogin,
@@ -25,22 +26,6 @@ import {
 } from '../middleware/rateLimit.js';
 
 const router = Router();
-
-const ROLE_LABEL = { admin: 'Administrator', student_assistant: 'Student Assistant' };
-
-// Account IDs are assigned from the role: AD-0001, AD-0002 ... for admins and
-// SA-0001, SA-0002 ... for student assistants. The prefixes are fixed here, so
-// they are safe to place in the SQL below.
-const ID_PREFIX = { admin: 'AD', student_assistant: 'SA' };
-
-async function nextMemberId(role) {
-  const prefix = ID_PREFIX[role];
-  const rows = await query(
-    `SELECT MAX(CAST(SUBSTRING(member_id, ${prefix.length + 2}) AS UNSIGNED)) AS last
-       FROM users WHERE member_id REGEXP '^${prefix}-[0-9]+$'`
-  );
-  return `${prefix}-${String(Number(rows[0]?.last || 0) + 1).padStart(4, '0')}`;
-}
 
 // Compare hashes of both values so the check takes the same time whatever the input.
 function keyMatches(provided, expected) {
@@ -72,42 +57,15 @@ router.post('/register', registerLimiter, async (req, res, next) => {
       });
     }
 
-    const existing = await query('SELECT email FROM users WHERE email = ? LIMIT 1', [values.email]);
-    if (existing.length) {
-      throw httpError(409, 'That email is already registered.', { email: 'An account with this email already exists.' });
-    }
-
-    const passwordHash = await bcrypt.hash(values.password, config.bcryptRounds);
-
-    // The ID comes from the role, never from the request. Two people registering
-    // at the same moment can be offered the same number; the unique key rejects
-    // the second, which simply takes the next one.
-    let memberId;
-    for (let attempt = 1; ; attempt += 1) {
-      memberId = await nextMemberId(values.role);
-      try {
-        // The role is limited to the registerable ones (validated above), never a
-        // super admin. Status is fixed server-side.
-        const created = await query(
-          `INSERT INTO users (full_name, email, member_id, password_hash, role, status)
-           VALUES (?, ?, ?, ?, ?, 'active')`,
-          [values.fullName, values.email, memberId, passwordHash, values.role]
-        );
-        await recordAudit(
-          req,
-          'account.register',
-          `Registered ${values.role === 'admin' ? 'an' : 'a'} ${ROLE_LABEL[values.role]} account (ID ${memberId})`,
-          { id: created.insertId, full_name: values.fullName, member_id: memberId, role: values.role }
-        );
-        break;
-      } catch (err) {
-        if (err.code !== 'ER_DUP_ENTRY') throw err;
-        if (!String(err.sqlMessage).includes('uq_users_member_id')) {
-          throw httpError(409, 'That email is already registered.', { email: 'An account with this email already exists.' });
-        }
-        if (attempt >= 5) throw httpError(503, 'Could not assign an ID. Try again.');
-      }
-    }
+    // The role is limited to the registerable ones (validated above), never a
+    // super admin. Status is fixed server-side.
+    const { id, memberId } = await createStaffAccount(values);
+    await recordAudit(
+      req,
+      'account.register',
+      `Registered ${values.role === 'admin' ? 'an' : 'a'} ${ROLE_LABEL[values.role]} account (ID ${memberId})`,
+      { id, full_name: values.fullName, member_id: memberId, role: values.role }
+    );
 
     res.status(201).json({
       message: `${ROLE_LABEL[values.role]} account created. Your ID is ${memberId}.`,
@@ -141,7 +99,7 @@ router.post('/login', loginIpLimiter, loginIdentifierLimiter, async (req, res, n
     }
 
     if (user.status === 'suspended') {
-      throw httpError(403, 'This account has been suspended. Contact the library administrator.');
+      throw httpError(403, 'This account has been deactivated. Contact the library administrator.');
     }
     if (user.status === 'pending') {
       throw httpError(403, 'This account is waiting for approval.');
