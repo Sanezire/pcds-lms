@@ -2652,7 +2652,7 @@ select.field-select[name="role"] { width: 100%; }
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px 12px;
+  padding: 16px 12px 18px;
   background: var(--white);
   border-right: 1px solid var(--line);
   transition: width 0.2s ease;
@@ -2667,7 +2667,25 @@ select.field-select[name="role"] { width: 100%; }
   min-height: 44px;
   padding: 0 2px 0 6px;
 }
-.sidebar-brand { min-width: 0; }
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 8px 4px 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  cursor: pointer;
+}
+.sidebar-brand:hover { background: var(--hover); }
+.sidebar-brand:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.sidebar-brand svg, .sidebar-brand img { flex: none; }
 .sidebar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-toggle {
   flex: none;
@@ -2683,8 +2701,7 @@ select.field-select[name="role"] { width: 100%; }
 }
 .sidebar-toggle:hover { background: var(--hover); color: var(--ink); }
 .sidebar-toggle:focus-visible,
-.sidebar-nav a:focus-visible,
-.sidebar-signout:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.sidebar-nav a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .sidebar-close { display: none; }
 
 .sidebar-nav {
@@ -2715,11 +2732,11 @@ select.field-select[name="role"] { width: 100%; }
 
 .sidebar-foot {
   display: grid;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 14px;
+  padding: 16px 0 6px;
   border-top: 1px solid var(--line);
 }
-.sidebar-user { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0 4px; }
+.sidebar-user { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0 6px; }
 .sidebar-avatar {
   flex: none;
   display: grid;
@@ -2732,36 +2749,38 @@ select.field-select[name="role"] { width: 100%; }
   font-weight: 700;
   font-size: 0.875rem;
 }
-.sidebar-user-text { display: grid; justify-items: start; gap: 4px; min-width: 0; }
+.sidebar-user-text { display: grid; justify-items: start; gap: 6px; min-width: 0; }
 .sidebar-user-text .user-name { display: block; max-width: 100%; }
-.sidebar-actions { display: flex; align-items: center; gap: 8px; }
-.sidebar-signout {
-  flex: 1;
-  display: inline-flex;
+.sidebar-actions { display: grid; gap: 4px; }
+.sidebar-action {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
+  gap: 12px;
+  min-height: 44px;
   padding: 0 14px;
   font: inherit;
-  font-weight: 600;
-  color: var(--blue-700);
-  background: var(--blue-50);
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius);
   cursor: pointer;
   white-space: nowrap;
+  text-align: left;
 }
-.sidebar-signout:hover { background: var(--blue-100); }
+.sidebar-action svg { flex: none; }
+.sidebar-action:hover { background: var(--hover); color: var(--ink); }
+.sidebar-action:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.sidebar-signout { color: var(--blue-700); font-weight: 600; }
 
 /* Collapsed: icons only, labels hidden (each item keeps a tooltip and an accessible name). */
 .shell-sidebar.is-collapsed .sidebar-label,
 .shell-sidebar.is-collapsed .sidebar-external { display: none; }
-.shell-sidebar.is-collapsed .sidebar-head { flex-direction: column; padding: 0; }
+.shell-sidebar.is-collapsed .sidebar-head { justify-content: center; padding: 0; }
+.shell-sidebar.is-collapsed .sidebar-brand { padding: 4px; }
 .shell-sidebar.is-collapsed .sidebar-nav a { justify-content: center; padding: 0; }
 .shell-sidebar.is-collapsed .sidebar-user { justify-content: center; padding: 0; }
-.shell-sidebar.is-collapsed .sidebar-actions { flex-direction: column; }
-.shell-sidebar.is-collapsed .sidebar-signout { flex: none; width: 40px; padding: 0; border-radius: var(--radius); }
+.shell-sidebar.is-collapsed .sidebar-action { justify-content: center; padding: 0; }
 
 .sidebar-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .mobile-bar { display: none; }
@@ -2787,17 +2806,16 @@ select.field-select[name="role"] { width: 100%; }
     background: rgba(0, 0, 0, 0.35);
     z-index: 30;
   }
-  .sidebar-collapse { display: none; }
   .sidebar-close { display: inline-grid; }
   /* Always the full sidebar inside the drawer. */
   .shell-sidebar.is-collapsed .sidebar-label { display: inline; }
   .shell-sidebar.is-collapsed .sidebar-user-text { display: grid; }
   .shell-sidebar.is-collapsed .sidebar-external { display: inline; }
-  .shell-sidebar.is-collapsed .sidebar-head { flex-direction: row; padding: 0 2px 0 6px; }
+  .shell-sidebar.is-collapsed .sidebar-head { justify-content: space-between; padding: 0 2px 0 6px; }
+  .shell-sidebar.is-collapsed .sidebar-brand { padding: 4px 8px 4px 4px; }
   .shell-sidebar.is-collapsed .sidebar-nav a { justify-content: flex-start; padding: 0 14px; }
   .shell-sidebar.is-collapsed .sidebar-user { justify-content: flex-start; padding: 0 4px; }
-  .shell-sidebar.is-collapsed .sidebar-actions { flex-direction: row; }
-  .shell-sidebar.is-collapsed .sidebar-signout { flex: 1; width: auto; padding: 0 14px; border-radius: 999px; }
+  .shell-sidebar.is-collapsed .sidebar-action { justify-content: flex-start; padding: 0 14px; }
   .mobile-bar {
     display: flex;
     align-items: center;

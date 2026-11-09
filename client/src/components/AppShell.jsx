@@ -3,20 +3,21 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { BrandMark } from './AuthLayout.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
+import { useTheme } from '../theme/ThemeContext.jsx';
 import { MANAGER_ROLES, roleLabel } from '../auth/roles.js';
 import {
   AuditIcon,
   ChartIcon,
   CloseIcon,
-  CollapseIcon,
   DashboardIcon,
-  ExpandIcon,
   ExternalIcon,
   KioskIcon,
   MenuIcon,
+  MoonIcon,
   SettingsIcon,
   SignOutIcon,
   StudentsIcon,
+  SunIcon,
 } from './Icons.jsx';
 
 // The super admin has the most screens, so they get a sidebar instead of the top bar.
@@ -50,6 +51,8 @@ function SidebarShell({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false); // small screens: the sidebar slides in
   const location = useLocation();
+  const { theme, toggle: toggleTheme } = useTheme();
+  const dark = theme === 'dark';
 
   useEffect(() => {
     try {
@@ -74,20 +77,18 @@ function SidebarShell({ user, onLogout }) {
     <div className={`shell shell-sidebar${collapsed ? ' is-collapsed' : ''}${drawerOpen ? ' is-drawer-open' : ''}`}>
       <aside className="sidebar" id="app-sidebar">
         <div className="sidebar-head">
-          <div className="brand sidebar-brand">
-            <BrandMark size={30} />
-            <span className="sidebar-label">PCDS LRC</span>
-          </div>
+          {/* The school logo opens and closes the sidebar (on small screens it closes the menu). */}
           <button
             type="button"
-            className="sidebar-toggle sidebar-collapse"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-expanded={!collapsed}
+            className="sidebar-brand"
+            onClick={() => (drawerOpen ? setDrawerOpen(false) : setCollapsed((c) => !c))}
+            aria-expanded={drawerOpen || !collapsed}
             aria-controls="app-sidebar"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={drawerOpen ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={drawerOpen ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? <ExpandIcon /> : <CollapseIcon />}
+            <BrandMark size={34} />
+            <span className="sidebar-label">PCDS LRC</span>
           </button>
           <button type="button" className="sidebar-toggle sidebar-close" onClick={() => setDrawerOpen(false)} aria-label="Close menu">
             <CloseIcon />
@@ -126,8 +127,17 @@ function SidebarShell({ user, onLogout }) {
             </span>
           </div>
           <div className="sidebar-actions">
-            <ThemeToggle />
-            <button type="button" className="sidebar-signout" onClick={onLogout} title={tip('Sign out')} aria-label="Sign out">
+            <button
+              type="button"
+              className="sidebar-action"
+              onClick={toggleTheme}
+              title={tip(dark ? 'Light mode' : 'Dark mode')}
+              aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {dark ? <SunIcon /> : <MoonIcon />}
+              <span className="sidebar-label">{dark ? 'Light mode' : 'Dark mode'}</span>
+            </button>
+            <button type="button" className="sidebar-action sidebar-signout" onClick={onLogout} title={tip('Sign out')} aria-label="Sign out">
               <SignOutIcon />
               <span className="sidebar-label">Sign out</span>
             </button>
@@ -149,10 +159,10 @@ function SidebarShell({ user, onLogout }) {
           >
             <MenuIcon />
           </button>
-          <div className="brand">
+          <button type="button" className="sidebar-brand" onClick={() => setDrawerOpen(true)} aria-label="Open menu" tabIndex={-1}>
             <BrandMark size={28} />
             <span>PCDS LRC</span>
-          </div>
+          </button>
         </header>
         <main className="page">
           <Outlet />
