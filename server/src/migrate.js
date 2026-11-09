@@ -46,6 +46,15 @@ export function ensureStudentsTable() {
 }
 
 export async function ensureSchema() {
+  await query(
+    `CREATE TABLE IF NOT EXISTS app_settings (
+       name        VARCHAR(64)  NOT NULL,
+       value       VARCHAR(255) NOT NULL,
+       updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+       PRIMARY KEY (name)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+
   const cols = await query(
     `SELECT COLUMN_TYPE AS t FROM information_schema.columns
       WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'role'`

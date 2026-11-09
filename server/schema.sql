@@ -133,3 +133,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   KEY idx_audit_user (user_id),
   KEY idx_audit_action (action)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Settings changed from the Settings screen (super admin), one row per setting.
+-- Library hours: library_open_hour / library_close_hour (whole hours, 24-hour local
+-- time) and library_closed_days (Monday = 0 ... Sunday = 6, comma-separated).
+-- A setting with no row uses the value from the server's .env.
+CREATE TABLE IF NOT EXISTS app_settings (
+  name        VARCHAR(64)     NOT NULL,
+  value       VARCHAR(255)    NOT NULL,
+  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -20,6 +20,8 @@ const ACTION_LABELS = {
   'student.promote': 'Student promoted',
   'student.delete': 'Student deleted',
   'student.import': 'Students imported',
+  'student.deactivate': 'Student deactivated',
+  'student.reactivate': 'Student reactivated',
   'message.rule_add': 'ID message added',
   'message.rule_edit': 'ID message edited',
   'message.rule_delete': 'ID message deleted',
@@ -28,6 +30,9 @@ const ACTION_LABELS = {
   'message.pin': 'Kiosk message kept',
   'message.unpin': 'Kept message removed',
   'report.export': 'Analytics report exported',
+  'settings.library_hours': 'Library hours changed',
+  'database.export': 'Database exported',
+  'database.import': 'Database restored',
   'audit.delete': 'Audit logs deleted',
 };
 const CATEGORIES = [
@@ -38,6 +43,8 @@ const CATEGORIES = [
   { value: 'student', label: 'Student records' },
   { value: 'message', label: 'Kiosk messages' },
   { value: 'report', label: 'Analytics exports' },
+  { value: 'settings', label: 'Settings' },
+  { value: 'database', label: 'Database backups' },
   { value: 'audit', label: 'Audit log deletions' },
 ];
 const ROLE_FILTERS = [

@@ -724,24 +724,198 @@ function StudentList({ refreshKey, view = 'records' }) {
   );
 }
 
+const DEACTIVATION_TEMPLATE = 'student_id\n2025-0001-1\n';
+
+// Same flow and layout as the student import: pick a file, review what will
+// change, then confirm.
+function DeactivateCsv({ onDone }) {
+  const inputRef = useRef(null);
+  const [file, setFile] = useState(null); // { name, text }
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  function reset() {
+    setFile(null);
+    setResult(null);
+    setError('');
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  async function run(text, commit) {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api('/students/deactivate/import', { method: 'POST', body: { csv: text, commit } });
+      setResult(r);
+      if (commit) {
+        showSuccessToast('Deactivation complete', `${r.deactivated} deactivated, ${r.skipped} skipped, ${r.failed} failed`);
+        onDone();
+      }
+    } catch (err) {
+      setResult(null);
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onPick(e) {
+    const f = e.target.files?.[0];
+    setResult(null);
+    setError('');
+    if (!f) return setFile(null);
+    if (!/\.csv$/i.test(f.name)) {
+      setFile(null);
+      return setError('Choose a .csv file.');
+    }
+    if (f.size > MAX_FILE_BYTES) {
+      setFile(null);
+      return setError('That file is too large. Split it into smaller files (under 9 MB).');
+    }
+    const text = await f.text();
+    setFile({ name: f.name, text });
+    run(text, false);
+  }
+
+  function downloadTemplate() {
+    const url = URL.createObjectURL(new Blob([DEACTIVATION_TEMPLATE], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'deactivation-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const done = result?.committed;
+  return (
+    <div className="student-import">
+      <p className="muted">
+        Upload a .csv file with a <code>student_id</code> column. Each listed student who is active is deactivated:
+        their record and attendance history are kept, but the kiosk and manual attendance no longer accept them until
+        they are reactivated. Students already inactive and IDs not in the records are listed separately. The file is
+        checked first and nothing changes until you confirm.
+      </p>
+      <div className="student-import-pick">
+        <label className="btn btn-quiet file-btn">
+          <input ref={inputRef} type="file" accept=".csv,text/csv" onChange={onPick} />
+          Choose CSV file
+        </label>
+        <button type="button" className="btn btn-quiet" onClick={downloadTemplate}>
+          Download template
+        </button>
+        {file && <span className="muted file-name">{file.name}</span>}
+      </div>
+
+      {error && (
+        <div className="alert alert-error" role="alert">
+          {error}
+        </div>
+      )}
+      {busy && !result && <p className="muted">Checking file…</p>}
+
+      {result && (
+        <div className="import-result" aria-live="polite">
+          {done ? (
+            <div className="alert alert-success" role="status">
+              Deactivation finished: {number.format(result.deactivated)} deactivated, {number.format(result.skipped)}{' '}
+              skipped, {number.format(result.failed)} failed.
+            </div>
+          ) : (
+            <p role="status">
+              {number.format(result.total)} {result.total === 1 ? 'row' : 'rows'} checked. Nothing changes until you
+              confirm.
+            </p>
+          )}
+
+          <dl className="import-summary">
+            {[
+              ['promoted', done ? 'Deactivated' : 'To deactivate', result.deactivated],
+              ['skipped', 'Skipped', result.skipped],
+              ['failed', 'Failed', result.failed],
+            ].map(([key, label, count]) => (
+              <div key={key} className={`summary-${key}${count === 0 ? ' is-zero' : ''}`}>
+                <dt>{label}</dt>
+                <dd>{number.format(count)}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {!done && result.preview.length > 0 && (
+            <div className="table-scroll">
+              <table className="stats-table">
+                <caption className="muted">
+                  First {result.preview.length} of {number.format(result.deactivated)} students to deactivate.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">RFID number</th>
+                    <th scope="col">Student ID</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Course</th>
+                    <th scope="col">Gender</th>
+                    <th scope="col">Year</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.preview.map((r) => (
+                    <tr key={r.studentId}>
+                      <td>{r.rfidNumber || <span className="muted">Not assigned</span>}</td>
+                      <td>{r.studentId}</td>
+                      <td>{r.fullName}</td>
+                      <td>{r.course}</td>
+                      <td>{genderLabel(r.gender)}</td>
+                      <td>{ordinal(r.yearLevel)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {[
+            ['skipped', result.skipped, result.skippedRows],
+            ['failed', result.failed, result.failedRows],
+          ].map(
+            ([key, count, rows]) =>
+              count > 0 && (
+                <details key={key} className="import-problems" open={key === 'failed' && !done}>
+                  <summary>
+                    {number.format(count)} {count === 1 ? 'row' : 'rows'} {key}
+                  </summary>
+                  <ul>
+                    {rows.map((p) => (
+                      <li key={p.line}>
+                        <strong>Line {p.line}</strong>
+                        {p.name ? ` (${p.name})` : ''}: {p.reason}
+                      </li>
+                    ))}
+                  </ul>
+                  {count > rows.length && <p className="muted">Showing the first {rows.length}.</p>}
+                </details>
+              )
+          )}
+
+          <div className="student-form-actions">
+            <button type="button" className="btn btn-quiet" onClick={reset}>
+              {done ? 'Deactivate from another file' : 'Cancel'}
+            </button>
+            {!done && (
+              <button type="button" className="btn btn-danger" disabled={busy || result.deactivated === 0} onClick={() => run(file.text, true)}>
+                {busy ? 'Deactivating…' : 'Confirm deactivation'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StudentRecords({ view = 'records' }) {
   const [mode, setMode] = useState('manual');
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
-  const [deactivationCsv, setDeactivationCsv] = useState('');
-  const [deactivationPreview, setDeactivationPreview] = useState(null);
-  const [deactivationError, setDeactivationError] = useState('');
-  async function previewDeactivation(file) {
-    if (!file) return;
-    if (file.size > MAX_FILE_BYTES) { setDeactivationPreview(null); setDeactivationError('That file is too large. Split it into smaller files (under 9 MB).'); return; }
-    const csv = await file.text(); setDeactivationCsv(csv); setDeactivationError('');
-    try { setDeactivationPreview(await api('/students/deactivate/import', { method: 'POST', body: { csv, commit: false } })); }
-    catch (err) { setDeactivationPreview(null); setDeactivationError(err.message); }
-  }
-  async function confirmDeactivation() {
-    try { const r = await api('/students/deactivate/import', { method: 'POST', body: { csv: deactivationCsv, commit: true } }); setDeactivationPreview(r); refresh(); }
-    catch (err) { setDeactivationError(err.message); }
-  }
 
   return (
     <>
@@ -764,11 +938,17 @@ export default function StudentRecords({ view = 'records' }) {
         </div>
         {mode === 'manual' ? <AddStudentForm onAdded={refresh} /> : <ImportCsv onImported={refresh} />}
       </section>}
-      {view === 'deactivation' && <section className="panel" aria-labelledby="deactivation-h">
-        <div className="table-head"><div><h2 id="deactivation-h">Student Deactivation</h2><p className="muted">Upload a CSV with a student_id column. Matching active students are deactivated; unmatched IDs are reported separately.</p></div><label className="btn btn-quiet file-btn"><input type="file" accept=".csv,text/csv" onChange={(e) => previewDeactivation(e.target.files?.[0])} />Choose deactivation CSV</label></div>
-        {deactivationError && <div className="alert alert-error" role="alert">{deactivationError}</div>}
-        {deactivationPreview && <><p>{deactivationPreview.committed ? 'Deactivation complete.' : `Preview: ${deactivationPreview.deactivated} matched; ${deactivationPreview.unmatched.length} unmatched; ${deactivationPreview.deactivated} will be deactivated.`}</p><p className="muted">Matched: {deactivationPreview.matched.map((s) => `${s.full_name} (${s.student_id})`).join(', ') || 'None'}</p><p className="muted">Unmatched: {deactivationPreview.unmatched.join(', ') || 'None'}</p>{!deactivationPreview.committed && deactivationPreview.deactivated > 0 && <button type="button" className="btn btn-primary" onClick={confirmDeactivation}>Confirm deactivation</button>}</>}
-      </section>}
+      {view === 'deactivation' && (
+        <section className="panel" aria-labelledby="deactivation-h">
+          <div className="table-head student-head">
+            <div>
+              <h2 id="deactivation-h">Student Deactivation</h2>
+              <p className="muted">Deactivate several students at once from a CSV file.</p>
+            </div>
+          </div>
+          <DeactivateCsv onDone={refresh} />
+        </section>
+      )}
       <StudentList key={view} refreshKey={refreshKey} view={view} />
     </>
   );

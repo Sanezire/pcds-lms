@@ -1,7 +1,7 @@
 import { download } from './api.js';
 import { showErrorToast, showSuccessToast } from './toast.js';
 
-function saveBlob(blob, filename) {
+export function saveBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

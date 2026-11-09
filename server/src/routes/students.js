@@ -369,25 +369,67 @@ router.post('/reactivate', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Deactivate students listed in a CSV (student_id column). Like the student
+// import, the file is checked first and nothing changes until commit is true.
 router.post('/deactivate/import', async (req, res, next) => {
   try {
     const csv = typeof req.body?.csv === 'string' ? req.body.csv : '';
     const commit = req.body?.commit === true;
     const table = parseCsv(csv);
     if (table.length < 2) throw httpError(400, 'Provide a CSV with a header and at least one student row.');
-    const idCol = table[0].cells.findIndex((h) => ['studentid','studentnumber','studentno','id'].includes(h.toLowerCase().replace(/[^a-z]/g,'')));
-    if (idCol < 0) throw httpError(400, 'CSV must include a student_id column.');
-    const ids = [...new Set(table.slice(1).map((r) => (r.cells[idCol] || '').trim()).filter(Boolean))];
-    const matches = await inBatches(ids, (part, marks) => query(`SELECT id,student_id,full_name,course,year_level FROM students_data WHERE status='active' AND student_id IN (${marks})`, part));
-    const matched = new Map(matches.map((s) => [s.student_id,s]));
-    const unmatched = ids.filter((id) => !matched.has(id));
-    if (commit && matches.length) {
-      await inBatches(matches.map((s) => s.id), (part, marks) => query(`UPDATE students_data SET status='inactive' WHERE id IN (${marks})`, part));
-      for (const s of matches) await recordAudit(req,'student.deactivate',`Deactivated student ${s.full_name} (${s.student_id}) by CSV import`);
+    const idCol = table[0].cells.findIndex((h) => ['studentid', 'studentnumber', 'studentno', 'id'].includes(h.toLowerCase().replace(/[^a-z]/g, '')));
+    if (idCol < 0) throw httpError(400, 'Missing column: student_id.');
+
+    const rows = table.slice(1).map(({ line, cells }) => ({ line, id: (cells[idCol] || '').trim() }));
+    const ids = [...new Set(rows.map((r) => r.id).filter(Boolean))];
+    const found = await inBatches(ids, (part, marks) =>
+      query(`SELECT id, rfid_number, student_id, full_name, course, gender, year_level, status FROM students_data WHERE student_id IN (${marks})`, part)
+    );
+    const byId = new Map(found.map((s) => [s.student_id, s]));
+
+    const toDeactivate = [];
+    const skippedRows = [];
+    const failedRows = [];
+    const firstLine = new Map();
+    for (const { line, id } of rows) {
+      const s = byId.get(id);
+      if (!id) failedRows.push({ line, reason: 'No student ID on this line.' });
+      else if (firstLine.has(id)) skippedRows.push({ line, name: s?.full_name, reason: `This student ID was already handled on line ${firstLine.get(id)} of the file.` });
+      else {
+        firstLine.set(id, line);
+        if (!s) failedRows.push({ line, name: id, reason: 'This student ID is not in the student records.' });
+        else if (s.status === 'inactive') skippedRows.push({ line, name: s.full_name, reason: 'This student is already inactive.' });
+        else toDeactivate.push(s);
+      }
+    }
+
+    if (commit && toDeactivate.length) {
+      await inBatches(toDeactivate.map((s) => s.id), (part, marks) => query(`UPDATE students_data SET status='inactive' WHERE id IN (${marks}) AND status='active'`, part));
+      for (const s of toDeactivate) await recordAudit(req, 'student.deactivate', `Deactivated student ${s.full_name} (${s.student_id}) by CSV import`);
       publish('attendance');
     }
-    res.json({ committed:commit, total:ids.length, deactivated:matches.length, matched:matches, unmatched });
-  } catch (err) { next(err); }
+
+    const byLine = (x, y) => x.line - y.line;
+    res.json({
+      committed: commit,
+      total: rows.length,
+      deactivated: toDeactivate.length,
+      skipped: skippedRows.length,
+      failed: failedRows.length,
+      preview: toDeactivate.slice(0, 5).map((s) => ({
+        rfidNumber: s.rfid_number,
+        studentId: s.student_id,
+        fullName: s.full_name,
+        course: s.course,
+        gender: s.gender,
+        yearLevel: Number(s.year_level),
+      })),
+      skippedRows: skippedRows.sort(byLine).slice(0, 100),
+      failedRows: failedRows.sort(byLine).slice(0, 100),
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

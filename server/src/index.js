@@ -14,6 +14,8 @@ import dashboardRoutes from './routes/dashboard.js';
 import studentRoutes from './routes/students.js';
 import auditLogRoutes from './routes/auditLogs.js';
 import { ensureSchema } from './migrate.js';
+import { loadLibraryHours } from './libraryHours.js';
+import settingsRoutes from './routes/settings.js';
 import statisticsRoutes from './routes/statistics.js';
 import reportRoutes from './routes/reports.js';
 import messageRoutes from './routes/messages.js';
@@ -62,6 +64,7 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: { message: 'Not found.' } });
@@ -86,6 +89,11 @@ try {
   await ensureSchema();
 } catch (err) {
   console.error('Could not update the database schema:', err.message);
+}
+try {
+  await loadLibraryHours();
+} catch (err) {
+  console.error('Could not read the library hours, using the .env values:', err.message);
 }
 
 const server = app.listen(config.port, () => {

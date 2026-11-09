@@ -7,6 +7,7 @@ import { publish } from '../events.js';
 import { readPinned } from './messages.js';
 import { ensureStudentsTable } from '../migrate.js';
 import { lockStudent, closeStaleVisits } from '../attendance.js';
+import { libraryStatus } from '../libraryHours.js';
 
 // Other routes import this from here.
 export { ensureStudentsTable };
@@ -39,6 +40,11 @@ async function findSubject(scanned) {
 // exists or what state an account is in.
 router.post('/scan', kioskScanLimiter, async (req, res, next) => {
   try {
+    // Taps are only accepted while the library is open (Settings > Library hours).
+    // A visit still open at closing time is closed automatically the next day.
+    const status = libraryStatus();
+    if (!status.open) throw httpError(403, 'The library is closed.', { libraryClosed: status.hours });
+
     const scanned = typeof req.body?.studentId === 'string' ? req.body.studentId.trim() : '';
     if (!ID_PATTERN.test(scanned)) throw httpError(400, 'Scan failed.');
 
@@ -96,6 +102,12 @@ router.post('/scan', kioskScanLimiter, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Whether the library is open now, so the kiosk can say so before anyone taps.
+router.get('/status', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(libraryStatus());
 });
 
 // The kiosk screen polls this for messages sent from the dashboard. The first call (no "after") only learns the

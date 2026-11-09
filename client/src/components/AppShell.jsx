@@ -27,6 +27,7 @@ export default function AppShell() {
           {canManage && <NavLink to="/statistics">Statistics</NavLink>}
           {canManage && <NavLink to="/students">Students</NavLink>}
           {isSuperAdmin && <NavLink to="/audit-logs">Audit Logs</NavLink>}
+          {isSuperAdmin && <NavLink to="/settings">Settings</NavLink>}
           {canManage && (
             <a href="/kiosk" target="_blank" rel="noopener noreferrer" className="nav-external">
               Kiosk

@@ -8,6 +8,7 @@ import Kiosk from './pages/Kiosk.jsx';
 import Statistics from './pages/Statistics.jsx';
 import Students from './pages/Students.jsx';
 import AuditLogs from './pages/AuditLogs.jsx';
+import Settings from './pages/Settings.jsx';
 import { MANAGER_ROLES, SUPER_ADMIN_ONLY } from './auth/roles.js';
 import ServerConnectionMonitor from './components/ServerConnectionMonitor.jsx';
 
@@ -35,6 +36,7 @@ export default function App() {
           </Route>
           <Route element={<ProtectedRoute roles={SUPER_ADMIN_ONLY} />}>
             <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>
       </Route>

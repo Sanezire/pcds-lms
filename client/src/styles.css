@@ -2603,3 +2603,35 @@ select.field-select[name="role"] { width: 100%; }
   background: var(--blue-100);
 }
 .student-save-status { min-height: 1.4em; margin: 14px 0 0; font-size: 0.875rem; }
+
+/* ---------- Settings (super admin) ---------- */
+.settings .panel h2 { margin: 0 0 8px; font-size: 1.25rem; }
+.settings .panel > form > .muted, .settings-block > .muted { max-width: 70ch; margin: 0 0 16px; }
+.settings-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 20px; }
+.settings-hours { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 0 20px; }
+.settings-hours .field-select { width: 100%; }
+.settings-days { border: 0; margin: 0 0 8px; padding: 0; }
+.settings-days legend { font-size: 0.875rem; font-weight: 600; margin-bottom: 8px; padding: 0; }
+.settings-day-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.day-chip {
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.day-chip:hover { border-color: var(--blue-300); }
+.day-chip.is-on { background: var(--blue-600); border-color: var(--blue-600); color: var(--on-accent); }
+.day-chip:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.settings-backup { display: grid; gap: 28px; }
+.settings-block h3 { margin: 0 0 6px; font-size: 1.0625rem; }
+.settings-block .alert { margin-top: 14px; }
+@media (max-width: 640px) {
+  .settings-hours { grid-template-columns: 1fr; }
+}
