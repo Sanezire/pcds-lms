@@ -85,5 +85,32 @@ export function libraryStatus(nowMs = Date.now()) {
   const { openHour, closeHour, closedWeekdays } = config.library;
   const closedToday = closedWeekdays.includes(weekday);
   const open = !closedToday && minute >= openHour * 60 && minute < closeHour * 60;
-  return { open, closedToday, opens: hourText(openHour), closes: hourText(closeHour), hours: hoursText() };
+  return {
+    open,
+    closedToday,
+    opens: hourText(openHour),
+    closes: hourText(closeHour),
+    hours: hoursText(),
+    nextChangeAt: nextChange(nowMs),
+  };
+}
+
+// The next moment the library opens or closes (ISO time), so the kiosk can switch
+// between "open" and "closed" right on time. Null if it never changes.
+function nextChange(nowMs) {
+  const { openHour, closeHour, closedWeekdays } = config.library;
+  const dayStartLocal = Math.floor((nowMs + OFFSET_MS) / 86_400_000) * 86_400_000;
+  for (let d = 0; d <= 8; d += 1) {
+    const startLocal = dayStartLocal + d * 86_400_000;
+    const weekday = (new Date(startLocal).getUTCDay() + 6) % 7;
+    if (closedWeekdays.includes(weekday)) continue;
+    for (const hour of [openHour, closeHour]) {
+      const at = startLocal + hour * 3_600_000 - OFFSET_MS;
+      // Open until midnight and open again at midnight the next day is no change.
+      if (hour === 24 && openHour === 0 && !closedWeekdays.includes((weekday + 1) % 7)) continue;
+      if (hour === 0 && closeHour === 24 && d > 0 && !closedWeekdays.includes((weekday + 6) % 7)) continue;
+      if (at > nowMs) return new Date(at).toISOString();
+    }
+  }
+  return null;
 }

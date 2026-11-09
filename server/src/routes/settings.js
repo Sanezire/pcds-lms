@@ -41,6 +41,7 @@ router.patch('/library-hours', async (req, res, next) => {
     await saveLibraryHours(values);
     clearResponseCache();
     publish('attendance');
+    publish('library'); // the kiosk switches between open and closed right away
     const closed = values.closedWeekdays.map((d) => DAY_SHORT[d]).join(', ') || 'none';
     await recordAudit(req, 'settings.library_hours', `Set library hours to ${hourText(values.openHour)} to ${hourText(values.closeHour)}, closed days: ${closed}`);
     res.json(hoursBody());
@@ -91,6 +92,7 @@ router.post(
       clearResponseCache();
       publish('attendance');
       publish('messages');
+      publish('library');
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
       // Written after the import, so the restored audit log keeps this entry.
       await recordAudit(req, 'database.import', `Restored a database backup (${total} rows in ${Object.keys(counts).length} tables)`);

@@ -216,7 +216,7 @@ export default function Kiosk() {
       } catch (err) {
         const hours = closedHours(err);
         if (hours) {
-          setLibrary({ open: false, hours });
+          setLibrary((l) => ({ ...l, open: false, hours }));
           showError(`Attendance is only recorded during library hours: ${hours}.`, 'The library is closed');
         } else showError(errorMessage(err));
       } finally {
@@ -273,21 +273,28 @@ export default function Kiosk() {
     };
   }, [submitScan]);
 
-  // Whether the library is open, checked every minute, so the waiting card can
-  // say it is closed before anyone taps.
-  useEffect(() => {
-    let stopped = false;
-    const load = () =>
+  // Whether the library is open. Reloaded the moment the super admin changes the
+  // hours (live update) and right at the next opening or closing time, so the
+  // screen never needs a refresh.
+  const loadLibrary = useCallback(
+    () =>
       api('/kiosk/status')
-        .then((data) => !stopped && setLibrary({ open: data.open, hours: data.hours }))
-        .catch(() => {});
-    load();
-    const timer = setInterval(load, 60_000);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-    };
-  }, []);
+        .then((data) => setLibrary({ open: data.open, hours: data.hours, nextChangeAt: data.nextChangeAt }))
+        .catch(() => {}),
+    []
+  );
+  useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
+  useLiveReload(['library'], loadLibrary);
+  useEffect(() => {
+    if (!library?.nextChangeAt) return undefined;
+    // A second late, so the server already sees the new state. Long waits are
+    // re-checked hourly in case the computer's clock or sleep shifts the timer.
+    const wait = Math.max(new Date(library.nextChangeAt).getTime() - Date.now() + 1000, 1000);
+    const timer = setTimeout(loadLibrary, Math.min(wait, 60 * 60 * 1000));
+    return () => clearTimeout(timer);
+  }, [library, loadLibrary]);
 
   const currentMessage = messages[0] || null;
   const proceed = useCallback(() => setMessages((q) => q.slice(1)), []);

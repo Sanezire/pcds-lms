@@ -9,6 +9,7 @@ import { clearResponseCache } from './responseCache.js';
 // each screen reloads just that data. Topics:
 //   attendance  RFID taps and manual entries (Statistics, Manual attendance)
 //   messages    ID messages (Message Configuration)
+//   library     library hours changed (kiosk open/closed)
 const clients = new Set();
 const HEARTBEAT_MS = 25 * 1000;
 
